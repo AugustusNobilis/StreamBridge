@@ -36,6 +36,7 @@ class FixtureProxy : public QTcpServer {
     unsigned connections = 0, authenticated = 0;
     QByteArray target, payload;
     QSslCertificate certificate;
+    QSslCertificate authority;
     QSslKey key;
     QList<QPointer<QTcpSocket>> sockets;
     explicit FixtureProxy(ProxyProtocol p) : protocol(p) {}
@@ -53,7 +54,9 @@ class FixtureProxy : public QTcpServer {
         if (protocol == ProxyProtocol::HttpsConnect) {
             auto *ssl = new QSslSocket(this);
             ssl->setSocketDescriptor(descriptor);
-            ssl->setLocalCertificate(certificate);
+            // Send the complete fixture chain. A clean Schannel host may not have
+            // any issuer cached; client trust still comes only from its explicit CA list.
+            ssl->setLocalCertificateChain({certificate, authority});
             ssl->setPrivateKey(key);
             ssl->setPeerVerifyMode(QSslSocket::VerifyNone); // Server does not require a client certificate.
             connect(ssl, &QSslSocket::errorOccurred, this,
@@ -244,9 +247,9 @@ int main(int argc, char **argv) {
             // configuration.
             QFile ca(QString::fromLocal8Bit(argv[1]) + "/ca.crt");
             require(ca.open(QIODevice::ReadOnly), "private test CA loaded");
-            auto cas = config.tls.caCertificates();
-            cas.append(QSslCertificate(ca.readAll()));
-            config.tls.setCaCertificates(cas);
+            tls.authority = QSslCertificate(ca.readAll());
+            require(!tls.authority.isNull(), "private test CA parses");
+            config.tls.setCaCertificates({tls.authority});
             require(adapter.start(config, capability, error), "HTTPS adapter starts with fixture CA");
             QTcpSocket client;
             request(client, adapter.port(), capability);

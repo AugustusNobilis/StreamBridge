@@ -123,6 +123,8 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     auto *disconnect = new QPushButton(text("DisconnectAccount"), panel);
     auto *fetch = new QPushButton(text(index == 0 ? "LoadBroadcasts" : "UseAccountKey"), panel);
     auto *broadcasts = new QComboBox(panel);
+    broadcasts->setObjectName(index == 0 ? "youtubeBroadcasts" : "twitchBroadcasts");
+    broadcasts->setPlaceholderText(text("OAuthChooseBroadcast"));
     auto *select = new QPushButton(text("UseBroadcast"), panel);
     form->addRow(cancel);
     form->addRow(disconnect);
@@ -156,20 +158,33 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
         select->setVisible(index == 0 && account.linked());
         cancel->setEnabled(account.busy());
         disconnect->setEnabled(unlocked && account.linked());
-        fetch->setEnabled(unlocked && account.linked() && !account.busy());
+        fetch->setEnabled((unlocked || index == 0) && account.linked() && !account.busy());
         if (index == 0 && !account.busy()) {
-            const auto chosen = broadcasts->currentData();
+            const auto chosen = broadcasts->currentData().toString();
             broadcasts->clear();
             for (const auto &b : account.broadcasts())
                 broadcasts->addItem(b.title, b.id);
-            const int found = broadcasts->findData(chosen);
-            if (found >= 0)
-                broadcasts->setCurrentIndex(found);
+            const auto saved = account.broadcastId();
+            if (!saved.isEmpty() && broadcasts->findData(saved) < 0)
+                broadcasts->addItem(account.broadcastTitle().isEmpty() ? saved : account.broadcastTitle(),
+                                    saved);
+            const auto desired =
+                chosen.isEmpty() || broadcasts->property("savedBroadcast").toString() != saved ? saved
+                                                                                               : chosen;
+            broadcasts->setProperty("savedBroadcast", saved);
+            broadcasts->setCurrentIndex(broadcasts->findData(desired));
+            broadcasts->setToolTip(
+                saved.isEmpty()
+                    ? text("PlatformSelectBroadcast")
+                    : text("SelectedBroadcast")
+                          .arg(account.broadcastTitle().isEmpty() ? saved : account.broadcastTitle()));
         }
-        select->setEnabled(unlocked && !account.busy() && broadcasts->count() > 0);
+        select->setEnabled((unlocked || index == 0) && !account.busy() && broadcasts->currentIndex() >= 0);
     };
     QObject::connect(&account, &OAuthAccount::changed, panel, refresh);
     QObject::connect(&manager, &OutputManager::changed, panel, refresh);
+    QObject::connect(broadcasts, &QComboBox::activated, panel,
+                     [select, &account](int index) { select->setEnabled(index >= 0 && !account.busy()); });
     QObject::connect(connect, &QPushButton::clicked, panel, [&, client, advanced, feedback, credentials] {
         if (client->text().trimmed().isEmpty()) {
             advanced->setChecked(true);
@@ -180,20 +195,28 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
                          credentials->id == client->text().trimmed() ? credentials->secret : QByteArray());
     });
     QObject::connect(cancel, &QPushButton::clicked, panel, [&account, refresh] {
-        account.cancel();
+        account.cancelPending();
         refresh();
     });
     QObject::connect(disconnect, &QPushButton::clicked, panel, [&] {
         if (!manager.busy())
             account.disconnectAccount();
     });
-    QObject::connect(fetch, &QPushButton::clicked, panel, [&] {
-        if (!manager.busy())
+    QObject::connect(fetch, &QPushButton::clicked, panel, [&, index] {
+        if (!manager.busy() || index == 0)
             account.fetchIngest();
     });
-    QObject::connect(select, &QPushButton::clicked, panel, [&, broadcasts] {
-        if (!manager.busy())
+    QObject::connect(select, &QPushButton::clicked, panel, [&, broadcasts, feedback] {
+        if (!manager.busy()) {
             account.selectBroadcast(broadcasts->currentData().toString());
+        } else {
+            for (const auto &broadcast : account.broadcasts())
+                if (broadcast.id == broadcasts->currentData().toString()) {
+                    feedback->setText(account.rememberBroadcast(broadcast) ? text("YouTubeMonitoringSaved")
+                                                                           : text("OAuthVaultFailed"));
+                    break;
+                }
+        }
     });
     QObject::connect(&account, &OAuthAccount::authorizationRequired, panel,
                      [feedback, openBrowser, copyCode](const QUrl &url, const QString &code) {
@@ -222,7 +245,10 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     QObject::connect(&account, &OAuthAccount::ingestReady, panel,
                      [&, index, feedback](const QString &server, QByteArray key) {
                          QString error;
-                         feedback->setText(manager.applyIngest(index, server, key, error)
+                         // Selecting an event must not replace a manually chosen ingest route.
+                         const auto selectedServer =
+                             index == 0 ? manager.config().endpoints[0].server : server;
+                         feedback->setText(manager.applyIngest(index, selectedServer, key, error)
                                                ? text("OAuthIngestSaved")
                                                : error);
                          key.fill('\0');
@@ -230,7 +256,7 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     // Closing Settings cancels an unfinished login; stored sessions remain usable.
     QObject::connect(panel, &QObject::destroyed, &account, [&account] {
         if (account.busy())
-            account.cancel();
+            account.cancelPending();
     });
     refresh();
     return panel;

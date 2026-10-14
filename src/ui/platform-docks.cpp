@@ -6,6 +6,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QElapsedTimer>
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -21,7 +22,14 @@
 #include <QSignalBlocker>
 #include <QTabWidget>
 #include <QVBoxLayout>
+#include <QtEndian>
+#include <cmath>
+#include <cstring>
 #include <memory>
+#include <windows.h>
+
+// WinMM declarations require the Windows types above.
+#include <mmsystem.h>
 Q_DECLARE_METATYPE(sb::ChatMessage)
 namespace sb {
 static QLabel *label(const QString &value, QWidget *parent) {
@@ -87,13 +95,54 @@ void ViewerBadge::paintEvent(QPaintEvent *) {
     p.setPen(color);
     p.drawText(QRect(27, 0, width() - 27, height()), Qt::AlignVCenter, displayCount());
 }
-QWidget *createChatDock(PlatformHub &hub) {
+QByteArray chatNotificationWave() {
+    constexpr int rate = 24000, samples = 3840;
+    QByteArray wave(44 + samples * 2, '\0');
+    std::memcpy(wave.data(), "RIFF", 4);
+    qToLittleEndian<quint32>(wave.size() - 8, wave.data() + 4);
+    std::memcpy(wave.data() + 8, "WAVEfmt ", 8);
+    qToLittleEndian<quint32>(16, wave.data() + 16);
+    qToLittleEndian<quint16>(1, wave.data() + 20);
+    qToLittleEndian<quint16>(1, wave.data() + 22);
+    qToLittleEndian<quint32>(rate, wave.data() + 24);
+    qToLittleEndian<quint32>(rate * 2, wave.data() + 28);
+    qToLittleEndian<quint16>(2, wave.data() + 32);
+    qToLittleEndian<quint16>(16, wave.data() + 34);
+    std::memcpy(wave.data() + 36, "data", 4);
+    qToLittleEndian<quint32>(samples * 2, wave.data() + 40);
+    constexpr double pi = 3.141592653589793;
+    for (int i = 0; i < samples; ++i) {
+        const double t = static_cast<double>(i) / rate;
+        const double envelope = std::pow(std::sin(pi * i / (samples - 1)), 2);
+        const auto sample = static_cast<qint16>(
+            900 * envelope * (0.75 * std::sin(2 * pi * 660 * t) + 0.25 * std::sin(2 * pi * 880 * t)));
+        qToLittleEndian<qint16>(sample, wave.data() + 44 + i * 2);
+    }
+    return wave;
+}
+QWidget *createChatDock(PlatformHub &hub, const QString &directory, std::function<void()> notify) {
     auto *panel = new QWidget;
     panel->setMinimumSize(260, 200);
     auto *layout = new QVBoxLayout(panel);
     auto *enabled = new QCheckBox(text("ChatEnable"), panel);
     enabled->setToolTip(text("ChatPrivacy"));
     layout->addWidget(enabled);
+    auto preferences = std::make_shared<QSettings>(directory + "/ui.ini", QSettings::IniFormat);
+    auto *sound = new QCheckBox(text("ChatSound"), panel);
+    sound->setObjectName("chatSound");
+    sound->setToolTip(text("ChatSoundHint"));
+    sound->setChecked(preferences->value("chat/sound", false).toBool());
+    layout->addWidget(sound);
+    QObject::connect(sound, &QCheckBox::toggled, panel, [preferences](bool checked) {
+        preferences->setValue("chat/sound", checked);
+        preferences->sync();
+    });
+    if (!notify)
+        notify = [] {
+            static const auto wave = chatNotificationWave();
+            PlaySoundA(wave.constData(), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT | SND_NOSTOP);
+        };
+    auto lastSound = std::make_shared<QElapsedTimer>();
     auto *status = label({}, panel);
     layout->addWidget(status);
     auto *list = new QListWidget(panel);
@@ -108,22 +157,31 @@ QWidget *createChatDock(PlatformHub &hub) {
     QObject::connect(enabled, &QCheckBox::toggled, &hub, &PlatformHub::setChatEnabled);
     QObject::connect(retry, &QPushButton::clicked, &hub, &PlatformHub::refresh);
     const auto refresh = [status, &hub] {
-        status->setText("YouTube · " + text(hub.chatStatus(0).toUtf8().constData()) + "\nTwitch · " +
-                        text(hub.chatStatus(1).toUtf8().constData()));
+        const auto title = hub.account(0).broadcastTitle();
+        status->setText("YouTube · " + text(hub.chatStatus(0).toUtf8().constData()) +
+                        (title.isEmpty() ? QString() : "\n" + text("SelectedBroadcast").arg(title)) +
+                        "\nTwitch · " + text(hub.chatStatus(1).toUtf8().constData()));
     };
     QObject::connect(&hub, &PlatformHub::changed, panel, refresh);
-    QObject::connect(&hub, &PlatformHub::messageReceived, panel, [list](const ChatMessage &m) {
-        const bool bottom = list->verticalScrollBar()->value() >= list->verticalScrollBar()->maximum() - 4;
-        auto *item = new QListWidgetItem(
-            platformIcon(m.platform),
-            m.time.toLocalTime().toString("HH:mm") + "  " + m.author + "\n" + m.text, list);
-        item->setData(Qt::UserRole, QVariant::fromValue(m));
-        item->setToolTip(m.platform == 0 ? "YouTube" : "Twitch");
-        while (list->count() > 500)
-            delete list->takeItem(0);
-        if (bottom)
-            list->scrollToBottom();
-    });
+    QObject::connect(
+        &hub, &PlatformHub::messageReceived, panel, [list, sound, notify, lastSound](const ChatMessage &m) {
+            const bool bottom =
+                list->verticalScrollBar()->value() >= list->verticalScrollBar()->maximum() - 4;
+            auto *item = new QListWidgetItem(
+                platformIcon(m.platform),
+                m.time.toLocalTime().toString("HH:mm") + "  " + m.author + "\n" + m.text, list);
+            item->setData(Qt::UserRole, QVariant::fromValue(m));
+            item->setToolTip(m.platform == 0 ? "YouTube" : "Twitch");
+            item->setBackground(m.platform == 0 ? QColor(214, 91, 100, 32) : QColor(164, 122, 221, 34));
+            while (list->count() > 500)
+                delete list->takeItem(0);
+            if (bottom)
+                list->scrollToBottom();
+            if (sound->isChecked() && m.notify && (!lastSound->isValid() || lastSound->elapsed() >= 1500)) {
+                lastSound->start();
+                notify();
+            }
+        });
     QObject::connect(&hub, &PlatformHub::messagesRemoved, panel,
                      [list](int platform, const QString &message, const QString &user) {
                          for (int row = list->count() - 1; row >= 0; --row) {
@@ -163,168 +221,45 @@ QWidget *createChatDock(PlatformHub &hub) {
     refresh();
     return panel;
 }
-QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
-    auto *tabs = new QTabWidget;
-    tabs->setMinimumSize(280, 250);
-    auto settings = std::make_shared<QSettings>(directory + "/ui.ini", QSettings::IniFormat);
-    for (int p = 0; p < 2; ++p) {
-        auto *panel = new QWidget(tabs);
-        auto *form = new QFormLayout(panel);
-        form->setRowWrapPolicy(QFormLayout::WrapLongRows);
-        auto *status = label({}, panel);
-        form->addRow(status);
-        auto *title = new QLineEdit(panel);
-        title->setMaxLength(p == 0 ? 100 : 140);
-        form->addRow(text("StreamTitle"), title);
-        auto *search = new QLineEdit(panel);
-        search->setPlaceholderText(text(p == 0 ? "CategoryRegion" : "CategorySearch"));
-        if (p == 0) {
-            search->setText(settings->value("youtubeRegion", "US").toString());
-            search->setMaxLength(2);
-        }
-        form->addRow(text(p == 0 ? "Region" : "CategorySearch"), search);
-        auto *find = new QPushButton(text("LoadCategories"), panel);
-        form->addRow(find);
-        auto *category = new QComboBox(panel);
-        form->addRow(text("Category"), category);
-        auto *game = new QPushButton(text("YouTubeChooseGame"), panel);
-        game->setObjectName("youtubeChooseGame");
-        auto *gameHint = label(text("YouTubeGameHint"), panel);
-        form->addRow(game);
-        form->addRow(gameHint);
-        QObject::connect(game, &QPushButton::clicked, panel,
-                         [&hub] { QDesktopServices::openUrl(hub.youtubeStudioUrl()); });
-        auto *save = new QPushButton(text("PublishInfo"), panel);
-        form->addRow(save);
-        auto *reload = new QPushButton(text("ReloadInfo"), panel);
-        form->addRow(reload);
-        auto dirty = std::make_shared<bool>(false);
-        auto loadedIdentity = std::make_shared<QString>();
-        auto fill = [=, &hub] {
-            const QSignalBlocker titleSignals(title), categorySignals(category);
-            const auto &info = hub.info(p);
-            title->setText(info.title);
-            category->clear();
-            if (!info.categoryId.isEmpty())
-                category->addItem(
-                    info.category.isEmpty()
-                        ? (p == 0 && info.categoryId == "20" ? text("YouTubeGaming") : info.categoryId)
-                        : info.category,
-                    info.categoryId);
-            *dirty = false;
-        };
-        const auto refresh = [=, &hub] {
-            status->setText(text(hub.status(p).toUtf8().constData()));
-            const auto identity = hub.account(p).clientId() + "/" + hub.account(p).userId() + "/" +
-                                  hub.account(p).broadcastId();
-            if (*loadedIdentity != identity || !hub.account(p).linked()) {
-                *loadedIdentity = identity;
-                *dirty = false;
-            }
-            if (!*dirty)
-                fill();
-            title->setEnabled(hub.info(p).loaded);
-            game->setVisible(p == 0 && category->currentData().toString() == "20");
-            gameHint->setVisible(p == 0 && category->currentData().toString() == "20");
-            game->setEnabled(hub.info(p).loaded && !hub.account(p).broadcastId().isEmpty());
-            category->setEnabled(hub.info(p).loaded);
-            save->setEnabled(hub.info(p).loaded && !hub.pending(p) && !title->text().trimmed().isEmpty() &&
-                             !category->currentData().toString().isEmpty());
-            find->setEnabled(hub.account(p).linked() && !hub.pending(p));
-        };
-        QObject::connect(&hub, &PlatformHub::changed, panel, refresh);
-        QObject::connect(title, &QLineEdit::textEdited, panel, [=] {
-            *dirty = true;
-            refresh();
-        });
-        QObject::connect(category, &QComboBox::activated, panel, [=] {
-            *dirty = true;
-            refresh();
-        });
-        QObject::connect(reload, &QPushButton::clicked, panel, [=, &hub] {
-            *dirty = false;
-            hub.refresh();
-            refresh();
-        });
-        QObject::connect(find, &QPushButton::clicked, panel, [=, &hub] {
-            const auto region = search->text().trimmed().toUpper();
-            if (p == 0 && (region.size() != 2 || !region[0].isLetter() || !region[1].isLetter()))
-                return;
-            if (p == 0)
-                settings->setValue("youtubeRegion", region);
-            hub.searchCategories(p, search->text(), region,
-                                 text("SetupGuideLanguage") == "ru-RU" ? "ru_RU" : "en_US");
-        });
-        QObject::connect(&hub, &PlatformHub::categoriesReady, panel,
-                         [=](int platform, const QList<Category> &items) {
-                             if (platform != p)
-                                 return;
-                             const auto selected = category->currentData();
-                             const auto selectedText = category->currentText();
-                             *dirty = true;
-                             category->clear();
-                             for (const auto &item : items)
-                                 category->addItem(item.name, item.id);
-                             if (selected.isValid() && category->findData(selected) < 0)
-                                 category->addItem(selectedText, selected);
-                             if (category->findData(selected) >= 0)
-                                 category->setCurrentIndex(category->findData(selected));
-                             refresh();
-                         });
-        QObject::connect(save, &QPushButton::clicked, panel, [=, &hub] {
-            hub.saveInfo(p, title->text(), category->currentData().toString());
-            refresh();
-        });
-        QObject::connect(&hub, &PlatformHub::saved, panel, [=](int platform) {
-            if (p == platform) {
-                *dirty = false;
-                status->setText(text("InfoSaved"));
-            }
-        });
-        if (p == 0) {
-            auto *goLive = new QPushButton(text("YouTubeGoLive"), panel);
-            goLive->setObjectName("youtubeGoLive");
-            auto *endLive = new QPushButton(text("YouTubeEndLive"), panel);
-            endLive->setObjectName("youtubeEndLive");
-            auto *controlStatus = label({}, panel);
-            form->addRow(goLive);
-            form->addRow(endLive);
-            form->addRow(controlStatus);
-            QObject::connect(goLive, &QPushButton::clicked, panel, [&hub] { hub.transitionYouTube(true); });
-            QObject::connect(endLive, &QPushButton::clicked, panel, [panel, &hub] {
-                const auto selected = hub.account(0).broadcastId();
-                QMessageBox box(QMessageBox::Question, "YouTube",
-                                text("YouTubeConfirmEnd").arg(hub.info(0).title),
-                                QMessageBox::Yes | QMessageBox::No, panel);
-                box.setTextFormat(Qt::PlainText);
-                box.button(QMessageBox::Yes)->setText(text("ConfirmYes"));
-                box.button(QMessageBox::No)->setText(text("ConfirmNo"));
-                box.setDefaultButton(QMessageBox::No);
-                if (box.exec() == QMessageBox::Yes && selected == hub.account(0).broadcastId())
-                    hub.transitionYouTube(false);
-            });
-            const auto controls = [=, &hub] {
-                const auto state = hub.info(0).broadcastState;
-                const bool ready = hub.account(0).linked() && !hub.account(0).broadcastId().isEmpty() &&
-                                   !hub.youtubeControlPending();
-                goLive->setEnabled(ready && state != "complete" && state != "live");
-                endLive->setEnabled(ready && state != "complete");
-                controlStatus->setText(text(hub.youtubeControlStatus().toUtf8().constData()));
-            };
-            QObject::connect(&hub, &PlatformHub::changed, panel, controls);
-            controls();
-        }
-        auto *dashboard = new QPushButton(text("OpenDashboard"), panel);
-        form->addRow(dashboard);
-        QObject::connect(dashboard, &QPushButton::clicked, panel, [p, &hub] {
-            QDesktopServices::openUrl(p == 0 ? hub.youtubeStudioUrl() : QUrl("https://dashboard.twitch.tv/"));
-        });
-        auto *scroll = new QScrollArea(tabs);
-        scroll->setWidgetResizable(true);
-        scroll->setWidget(panel);
-        tabs->addTab(scroll, platformIcon(p), p == 0 ? "YouTube" : "Twitch");
-        refresh();
-    }
-    return tabs;
+QWidget *createYouTubeControls(PlatformHub &hub, QWidget *parent) {
+    auto *panel = new QWidget(parent);
+    auto *layout = new QVBoxLayout(panel);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *goLive = new QPushButton(text("YouTubeGoLive"), panel);
+    goLive->setObjectName("youtubeGoLive");
+    auto *endLive = new QPushButton(text("YouTubeEndLive"), panel);
+    endLive->setObjectName("youtubeEndLive");
+    auto *controlStatus = label({}, panel);
+    layout->addWidget(goLive);
+    layout->addWidget(endLive);
+    layout->addWidget(controlStatus);
+    QObject::connect(goLive, &QPushButton::clicked, panel, [&hub] { hub.transitionYouTube(true); });
+    QObject::connect(endLive, &QPushButton::clicked, panel, [panel, &hub] {
+        const auto selected = hub.account(0).broadcastId();
+        QMessageBox box(QMessageBox::Question, "YouTube", text("YouTubeConfirmEnd").arg(hub.info(0).title),
+                        QMessageBox::Yes | QMessageBox::No, panel);
+        box.setTextFormat(Qt::PlainText);
+        box.button(QMessageBox::Yes)->setText(text("ConfirmYes"));
+        box.button(QMessageBox::No)->setText(text("ConfirmNo"));
+        box.setDefaultButton(QMessageBox::No);
+        if (box.exec() == QMessageBox::Yes && selected == hub.account(0).broadcastId())
+            hub.transitionYouTube(false);
+    });
+    const auto controls = [=, &hub] {
+        panel->setVisible(hub.account(0).linked());
+        const auto state = hub.info(0).broadcastState;
+        const bool ready = hub.account(0).linked() && !hub.account(0).broadcastId().isEmpty() &&
+                           !hub.youtubeControlPending();
+        goLive->setEnabled(ready && state != "complete" && state != "live");
+        endLive->setEnabled(ready && state != "complete");
+        controlStatus->setText(text(hub.youtubeControlStatus().toUtf8().constData()));
+    };
+    QObject::connect(&hub, &PlatformHub::changed, panel, controls);
+    controls();
+    auto *dashboard = new QPushButton(text("OpenYouTubeStudio"), panel);
+    layout->addWidget(dashboard);
+    QObject::connect(dashboard, &QPushButton::clicked, panel,
+                     [&hub] { QDesktopServices::openUrl(hub.youtubeStudioUrl()); });
+    return panel;
 }
 } // namespace sb

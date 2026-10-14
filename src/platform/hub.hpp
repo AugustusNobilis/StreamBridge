@@ -12,6 +12,7 @@ struct ChatMessage {
     QString id, userId, author, text, room;
     QDateTime time;
     bool moderatable = true;
+    bool notify = true;
 };
 struct ChannelInfo {
     qint64 viewers = -1;
@@ -67,6 +68,10 @@ class PlatformHub : public QObject {
     void next(int platform);
     void syncAccounts();
     void pollInfo(int platform);
+    void setYouTubeChat(const QString &id);
+    void loadYouTubeBroadcast(const QString &id, bool missingCount);
+    void discoverYouTubeBroadcast(bool allowUnique, QString page = {}, QList<Broadcast> candidates = {},
+                                  unsigned pages = 0);
     void sendYouTubeTransition(const QString &id, const QString &target);
     void pollYouTubeTransition(const QString &id, const QString &target, unsigned remaining = 30);
     void completeYouTubeTransition(const QString &id, const QString &target);
@@ -93,6 +98,9 @@ class PlatformHub : public QObject {
     QQueue<QString> seenOrder_;
     bool chatEnabled_ = false, stopped_ = false, ircDenied_ = false, youtubeBlocked_ = false;
     bool youtubePending_ = false;
+    bool youtubeChatPrimed_ = false;
+    bool youtubeChatNeedsLookup_ = false;
+    unsigned youtubeRetrySeconds_ = 5;
     bool youtubeControlPending_ = false;
     QString youtubeControlStatus_ = "YouTubeControlHint";
     unsigned chatGeneration_ = 0;

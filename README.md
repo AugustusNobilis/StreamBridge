@@ -2,25 +2,25 @@
 
 ## Русский
 
-Бесплатный плагин для OBS Studio, который позволяет одновременно вести трансляции на **YouTube и Twitch**, читать сообщения обеих площадок в одном чате и менять данные эфира прямо в OBS.
+Бесплатный плагин для OBS Studio, который позволяет одновременно вести трансляции на **YouTube и Twitch**, читать сообщения обеих площадок в одном чате и управлять эфиром YouTube прямо в OBS.
 
-**[Скачать StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.3)** · [Настроить YouTube](docs/YOUTUBE-SETUP.ru.md) · [Настроить Twitch](docs/TWITCH-SETUP.ru.md)
+**[Скачать StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4)** · [Настроить YouTube](docs/YOUTUBE-SETUP.ru.md) · [Настроить Twitch](docs/TWITCH-SETUP.ru.md)
 
 ### Возможности
 
 - Независимый запуск и остановка трансляции на каждой площадке.
 - Общие настройки кодирования или отдельное качество для YouTube и Twitch.
 - Общий чат со значками площадок, удалением сообщений и блокировкой пользователей при наличии прав.
-- Счётчики зрителей и отдельная панель для названия, категории и управления эфиром YouTube.
+- Счётчики зрителей и управление эфиром YouTube в основной панели.
 - Браузерные источники с индивидуальными прокси.
 - Русский и английский интерфейс, шифрование сохранённых ключей и обновления из GitHub.
 
 ### 1. Скачайте и установите
 
-Текущая сборка **0.2.3 — предварительная**, для **Windows x64 и OBS Studio 32 с Qt 6.8**. OBS нужно установить отдельно; поддерживается также portable-версия.
+Текущая сборка **0.2.4 — предварительная**, для **Windows x64 и OBS Studio 32 с Qt 6.8**. OBS нужно установить отдельно; поддерживается также portable-версия.
 
-1. Откройте [страницу версии 0.2.3](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.3) и разверните список **Assets** внизу.
-2. Если устанавливаете плагин впервые, скачайте **obs-streambridge-0.2.3-windows-x64-setup.exe**. Для обновления уже установленного плагина можно скачать **updater.exe**.
+1. Откройте [страницу версии 0.2.4](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4) и разверните список **Assets** внизу.
+2. Если устанавливаете плагин впервые, скачайте **obs-streambridge-0.2.4-windows-x64-setup.exe**. Для обновления уже установленного плагина можно скачать **updater.exe**.
 3. Закройте OBS. Запустите скачанный файл.
 4. Укажите **корневую папку OBS**, внутри которой находится **bin → 64bit → obs64.exe**. Например, **C:\Program Files\obs-studio**. Не выбирайте саму папку bin или obs-plugins.
 5. Дождитесь завершения установки и откройте OBS.
@@ -29,7 +29,7 @@
 
 ### 2. Откройте панели и настройки
 
-1. В меню OBS **Док-панели** включите **StreamBridge**, **StreamBridge — Чат** и **StreamBridge — Данные трансляции**.
+1. В меню OBS **Док-панели** включите **StreamBridge** и **StreamBridge — Чат**.
 2. В основной панели StreamBridge откройте **Настройки StreamBridge**.
 3. При необходимости выберите язык на вкладке **О плагине**, затем перезапустите OBS.
 4. Настройте площадки по следующему разделу. Можно использовать только одну из них.
@@ -41,7 +41,7 @@
 1. Для YouTube откройте [YouTube Studio](https://studio.youtube.com/) → **Создать → Начать трансляцию**, подготовьте эфир через видеокодер и скопируйте его ключ потока. Для Twitch откройте [кабинет автора](https://dashboard.twitch.tv/) → **Настройки → Трансляция** и скопируйте основной ключ.
 2. В настройках StreamBridge откройте вкладку нужной площадки.
 3. Выберите основной сервер YouTube или автоматический сервер Twitch.
-4. Вставьте значение в поле **Ключ трансляции** и нажмите **Сохранить ключ сейчас (с шифрованием)**. После успешного сохранения поле очищается — это нормально.
+4. Вставьте значение в поле **Ключ трансляции** и нажмите **Сохранить сервер и ключ (с шифрованием)**. После успешного сохранения поле очищается — это нормально.
 5. Нажмите **Сохранить** внизу окна, чтобы сохранить остальные настройки. Для второй площадки повторите эти действия.
 
 **Если нужны чат, зрители и управление данными эфира**, подключите аккаунт. Для этого один раз создайте своё приложение площадки:
@@ -61,20 +61,21 @@
 
 1. На вкладке кодирования выберите доступный энкодер и настройте качество. Для одинакового качества на обеих площадках используйте общее кодирование; для разного включите **Независимое кодирование**.
 2. Сохраните настройки и нажмите **Запустить** рядом с нужной площадкой в основной панели StreamBridge. **Запустить всё** включает оба настроенных выхода.
-3. Проверьте получение сигнала в кабинете площадки. Если аккаунт YouTube подключён, нажмите **Начать эфир YouTube** в панели **Данные трансляции**. Без привязки аккаунта используйте Studio или автоматический старт.
+3. Проверьте получение сигнала в кабинете площадки. Если аккаунт YouTube подключён, нажмите **Начать эфир YouTube** в основном блоке **YouTube**. Без привязки аккаунта используйте Studio или автоматический старт.
 4. Для завершения остановите нужный выход в StreamBridge и проверьте статус эфира на площадке.
 
 Кнопки StreamBridge управляют его собственными выходами независимо от основной кнопки трансляции OBS. Перед изменением настроек площадок остановите выходы StreamBridge.
 
-### 5. Пользуйтесь чатом и данными эфира
+### 5. Пользуйтесь чатом и управлением эфиром
 
-- **Чат:** после подключения аккаунтов включите **Подключить чат** в панели **StreamBridge — Чат**. Значок рядом с сообщением показывает площадку. Для удаления или блокировки нажмите сообщение правой кнопкой и подтвердите действие. Нужны соответствующие права.
-- **Зрители:** серый счётчик означает 0, приглушённый красный — 1 и больше. «0*» означает, что YouTube не передал число: зрителей может быть 0 либо счётчик скрыт. «—» означает недоступные данные, ещё не начатый или завершённый эфир.
-- **Название и категория:** в панели **StreamBridge — Данные трансляции** выберите площадку. Для YouTube укажите двухбуквенный регион категорий, например RU; для Twitch введите название игры или категории. Нажмите **Найти категории**, выберите результат и затем **Опубликовать название и категорию**. Для категории «Игры» кнопка **Выбрать игру в YouTube Studio** открывает выбранный эфир: отдельное название игры публичный API не поддерживает.
-- **Завершение YouTube:** нажмите **Завершить эфир YouTube** и подтвердите действие. После подтверждения YouTube выход на эту площадку остановится; Twitch продолжит работу. Завершённый эфир нельзя возобновить.
+- Включите **Подключить чат** в панели **StreamBridge — Чат**. Сообщения YouTube имеют мягкий красный фон, Twitch — фиолетовый. Правая кнопка открывает копирование, удаление и блокировку при наличии прав.
+- **Тихий звук новых сообщений** включается отдельным флажком и запоминается. По умолчанию он выключен, история приходит без звука, частые сообщения не создают очередь сигналов. Звук может попасть в захват рабочего стола.
+- Выбранный эфир YouTube сохраняется. Если он отсутствует или завершён, плагин ищет активный эфир; при нескольких вариантах выберите нужный в настройках YouTube. Во время отправки видео выбор меняет только отслеживание чата и зрителей.
+- **Зрители:** серый счётчик — 0, приглушённый красный — 1 и больше. «0*» означает, что YouTube не передал число: возможны ноль зрителей или скрытая статистика. **—** означает недоступные данные. Наведите указатель для статуса и названия выбранного эфира.
+- **Завершить эфир YouTube** в основной панели завершает эфир после подтверждения и останавливает только выход YouTube. Twitch продолжает работать. Завершённый эфир нельзя возобновить.
+- Отдельная панель данных трансляции удалена. Название, описание, категорию и игру редактируйте в кабинете площадки. Кнопка **Открыть YouTube Studio** открывает выбранный эфир.
 
-Каждый пользователь YouTube использует собственный проект Google Cloud. Чат и другие действия через API расходуют квоту этого проекта. В режиме Google Testing для доступа к YouTube потребуется повторный вход через 7 дней. [Подробнее о настройке и ограничениях](docs/YOUTUBE-SETUP.ru.md).
-
+Каждый пользователь YouTube использует собственный проект Google Cloud. Чат и другие запросы расходуют его квоту. [Инструкция и ограничения](docs/YOUTUBE-SETUP.ru.md).
 ### 6. Обновляйте плагин
 
 1. Откройте **Настройки StreamBridge → Обновления**. Здесь показаны установленная и последняя найденная версии.
@@ -111,25 +112,25 @@
 
 ## English
 
-A free OBS Studio plugin for streaming to **YouTube and Twitch** at the same time, reading both platforms in one chat and editing stream information inside OBS.
+A free OBS Studio plugin for streaming to **YouTube and Twitch** at the same time, reading both platforms in one chat and controlling YouTube broadcasts inside OBS.
 
-**[Download StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.3)** · [Set up YouTube](docs/YOUTUBE-SETUP.en.md) · [Set up Twitch](docs/TWITCH-SETUP.en.md)
+**[Download StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4)** · [Set up YouTube](docs/YOUTUBE-SETUP.en.md) · [Set up Twitch](docs/TWITCH-SETUP.en.md)
 
 ### Features
 
 - Independent start and stop controls for each platform.
 - Shared encoding settings or separate quality settings for YouTube and Twitch.
 - Combined chat with platform icons, message deletion and user bans when permitted.
-- Viewer counts and a separate dock for titles, categories and YouTube broadcast controls.
+- Viewer counts and YouTube broadcast controls in the main dock.
 - Browser sources with individual proxies.
 - Russian and English interfaces, encrypted saved credentials and updates from GitHub.
 
 ### 1. Download and install
 
-The current **0.2.3 preview** targets **Windows x64 and OBS Studio 32 with Qt 6.8**. Install OBS separately; portable installations are also supported.
+The current **0.2.4 preview** targets **Windows x64 and OBS Studio 32 with Qt 6.8**. Install OBS separately; portable installations are also supported.
 
-1. Open the [0.2.3 release page](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.3) and expand **Assets** at the bottom.
-2. For a first installation, download **obs-streambridge-0.2.3-windows-x64-setup.exe**. To update an existing plugin, you can use **updater.exe**.
+1. Open the [0.2.4 release page](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4) and expand **Assets** at the bottom.
+2. For a first installation, download **obs-streambridge-0.2.4-windows-x64-setup.exe**. To update an existing plugin, you can use **updater.exe**.
 3. Close OBS and run the downloaded file.
 4. Select the **OBS root folder** containing **bin → 64bit → obs64.exe**, for example **C:\Program Files\obs-studio**. Do not select bin or obs-plugins itself.
 5. Wait for installation to finish, then open OBS.
@@ -138,7 +139,7 @@ Windows may request administrator permission for a protected installation folder
 
 ### 2. Open the docks and settings
 
-1. In OBS's **Docks** menu, enable **StreamBridge**, **StreamBridge — Chat** and **StreamBridge — Stream information**.
+1. In OBS's **Docks** menu, enable **StreamBridge** and **StreamBridge — Chat**.
 2. Open **StreamBridge Settings** from the main StreamBridge dock.
 3. If needed, choose your language on the **About** tab, then restart OBS.
 4. Configure your platforms below. Using just one platform is supported.
@@ -150,10 +151,10 @@ Windows may request administrator permission for a protected installation folder
 1. For YouTube, open [YouTube Studio](https://studio.youtube.com/) → **Create → Go live**, prepare an encoder broadcast and copy its stream key. For Twitch, open [Creator Dashboard](https://dashboard.twitch.tv/) → **Settings → Stream** and copy the primary stream key.
 2. Open the platform's tab in StreamBridge settings.
 3. Select the primary YouTube server or the automatic Twitch server.
-4. Paste the value into **Stream key** and click **Save key now (encrypted)**. The field clears after a successful save; this is expected.
+4. Paste the value into **Stream key** and click **Save server and key (encrypted)**. The field clears after a successful save; this is expected.
 5. Click **Save** at the bottom to save the other settings. Repeat for the second platform if needed.
 
-**For chat, viewers and stream information controls**, connect an account. Register your own platform application once:
+**For chat, viewers and YouTube broadcast controls**, connect an account. Register your own platform application once:
 
 | Platform | What you need | Instructions |
 | --- | --- | --- |
@@ -170,20 +171,21 @@ After sign-in, select an existing YouTube broadcast using **Load existing broadc
 
 1. On the encoding tab, select an available encoder and configure quality. Use shared encoding for matching quality on both platforms, or enable **Independent encoding** for separate settings.
 2. Save settings and click **Start** beside the platform in the main StreamBridge dock. **Start All** starts both configured outputs.
-3. Check the incoming signal in the platform dashboard. With a connected YouTube account, click **Go live on YouTube** in the **Stream information** dock. Without an account connection, use Studio or auto-start.
+3. Check the incoming signal in the platform dashboard. With a connected YouTube account, click **Go live on YouTube** in the main **YouTube** section. Without an account connection, use Studio or auto-start.
 4. To finish, stop the output in StreamBridge and check the broadcast status on the platform.
 
 StreamBridge controls its own outputs independently of OBS's main streaming button. Stop StreamBridge outputs before changing platform settings.
 
-### 5. Use chat and stream information
+### 5. Use chat and broadcast controls
 
-- **Chat:** after connecting your accounts, enable **Connect chat** in **StreamBridge — Chat**. Each message has a platform icon. Right-click a message to delete it or ban its author, then confirm. Appropriate permissions are required.
-- **Viewers:** grey means zero viewers; muted red means one or more. “0*” means YouTube omitted the number: there may be zero viewers or the count may be hidden. A dash means unavailable data, an upcoming broadcast or an ended broadcast.
-- **Title and category:** select the platform in **StreamBridge — Stream information**. For YouTube, enter a two-letter category region such as US; for Twitch, enter a game or category name. Click **Find categories**, select a result, then **Publish title and category**. For Gaming, **Choose game in YouTube Studio** opens the selected broadcast; the public API does not support setting the specific game title.
-- **Ending YouTube:** click **End YouTube broadcast** and confirm. After YouTube confirms completion, its output stops while Twitch continues. A completed broadcast cannot be resumed.
+- Enable **Connect chat** in **StreamBridge — Chat**. YouTube messages have a soft red background and Twitch messages a purple one. Right-click for copying, deletion or banning when authorized.
+- **Quiet sound for new messages** is optional and remembered. It is off by default, history is silent, and rapid messages do not queue sounds. Desktop audio capture may include the sound.
+- The selected YouTube broadcast is remembered. If missing or completed, the plugin looks for an active broadcast; choose explicitly in YouTube settings when there are multiple candidates. During video transmission, selection changes monitoring only.
+- **Viewers:** grey means zero, muted red means one or more. «0*» means YouTube omitted the count: it may be zero or hidden. A dash means unavailable data. Hover for status and the selected broadcast title.
+- **End YouTube broadcast** in the main dock ends the broadcast after confirmation and stops only the YouTube output. Twitch continues. Completed broadcasts cannot be resumed.
+- The separate stream information dock has been removed. Edit title, description, category and game in the platform dashboard. **Open YouTube Studio** opens the selected broadcast.
 
-Each YouTube user uses their own Google Cloud project. Chat and other API operations consume that project's quota. Google Testing mode requires another sign-in after seven days for YouTube access. [Setup details and limitations](docs/YOUTUBE-SETUP.en.md).
-
+Each YouTube user uses their own Google Cloud project. Chat and other API requests use that project's quota. [Setup and limitations](docs/YOUTUBE-SETUP.en.md).
 ### 6. Update the plugin
 
 1. Open **StreamBridge Settings → Updates** to see the installed version and the latest version found.

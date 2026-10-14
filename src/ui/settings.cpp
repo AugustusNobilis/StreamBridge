@@ -152,7 +152,9 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
         auto *form = new QFormLayout(page);
         form->setRowWrapPolicy(QFormLayout::WrapLongRows);
         servers[i] = new QLineEdit(manager.config().endpoints[i].server, page);
+        servers[i]->setObjectName(QString("serverUrl%1").arg(i));
         auto *serverList = new QComboBox(page);
+        serverList->setObjectName(QString("serverChoice%1").arg(i));
         if (i == 0) {
             serverList->addItem(text("YouTubePrimary"), "rtmps://a.rtmps.youtube.com:443/live2");
             serverList->addItem(text("YouTubeBackup"), "rtmps://b.rtmps.youtube.com:443/live2?backup=1");
@@ -172,6 +174,7 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
         chooseServer();
         connect(serverList, &QComboBox::currentIndexChanged, page, chooseServer);
         auto *key = new QLineEdit(page);
+        key->setObjectName(QString("streamKey%1").arg(i));
         key->setEchoMode(QLineEdit::Password);
         key->setPlaceholderText(text("KeyHint"));
         key->setMaxLength(8192);
@@ -198,12 +201,13 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
                 QUrl(i == 0 ? "https://studio.youtube.com/" : "https://dashboard.twitch.tv/settings/stream"));
         });
         auto *save = new QPushButton(text("SaveKey"), page);
+        save->setObjectName(QString("saveIngest%1").arg(i));
         form->addRow(save);
         auto *remove = new QPushButton(text("DeleteKey"), page);
         form->addRow(remove);
         auto *feedback = note("", page);
         form->addRow(feedback);
-        connect(save, &QPushButton::clicked, page, [&, key, feedback, i] {
+        connect(save, &QPushButton::clicked, page, [&, key, feedback, editor = servers[i], i] {
             if (manager.busy()) {
                 feedback->setText(text("StopFirst"));
                 return;
@@ -214,7 +218,7 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
             }
             QString error;
             auto bytes = key->text().toUtf8();
-            const bool ok = manager.secrets().put(endpointName(i) + "/stream-key", bytes, error);
+            const bool ok = manager.applyIngest(i, editor->text().trimmed(), bytes, error);
             bytes.fill('\0');
             if (ok)
                 key->clear();
@@ -231,15 +235,17 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
             key->clear();
         });
         form->addRow(accountPanel(manager, i, page));
-        connect(&manager.account(i), &OAuthAccount::ingestReady, page,
-                [&, editor = servers[i], serverList, i](const QString &server, const QByteArray &) {
-                    if (manager.config().endpoints[i].server == server) {
-                        const auto found = serverList->findData(server);
-                        serverList->setCurrentIndex(found >= 0 ? found : serverList->count() - 1);
-                        editor->setText(server);
-                    }
-                });
-        page->setEnabled(!manager.busy());
+        if (i == 1)
+            connect(&manager.account(i), &OAuthAccount::ingestReady, page,
+                    [&, editor = servers[i], serverList, i](const QString &server, const QByteArray &) {
+                        if (manager.config().endpoints[i].server == server) {
+                            const int found = serverList->findData(server);
+                            serverList->setCurrentIndex(found >= 0 ? found : serverList->count() - 1);
+                            editor->setText(server);
+                        }
+                    });
+        for (QWidget *widget : std::array<QWidget *, 6>{servers[i], serverList, key, reveal, save, remove})
+            widget->setEnabled(!manager.busy());
         auto *scroll = new QScrollArea(tabs);
         scroll->setWidgetResizable(true);
         scroll->setWidget(page);

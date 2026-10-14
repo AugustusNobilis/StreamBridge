@@ -19,6 +19,7 @@ class ViewerBadge : public QWidget {
     bool unreported_ = false;
     QString displayCount() const;
 };
-QWidget *createChatDock(PlatformHub &hub);
-QWidget *createInfoDock(PlatformHub &hub, const QString &directory);
+QByteArray chatNotificationWave();
+QWidget *createChatDock(PlatformHub &hub, const QString &directory, std::function<void()> notify = {});
+QWidget *createYouTubeControls(PlatformHub &hub, QWidget *parent);
 } // namespace sb

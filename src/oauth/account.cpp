@@ -152,6 +152,13 @@ void OAuthAccount::fail(const QString &key) {
     if (linked() && (key == "OAuthNetworkFailed" || key == "OAuthApiFailed"))
         maintenance_.start(60000);
 }
+void OAuthAccount::cancelPending() {
+    cancel();
+    if (linked()) {
+        setStatus("OAuthConnected");
+        armMaintenance();
+    }
+}
 void OAuthAccount::resume() {
     if (busy_ || linked())
         return;
@@ -293,6 +300,8 @@ bool OAuthAccount::saveTokens(const QJsonObject &json) {
     QJsonObject next{{"client_id", clientId_},
                      {"user_id", tokens_.value("user_id")},
                      {"broadcast_id", tokens_.value("broadcast_id")},
+                     {"broadcast_title", tokens_.value("broadcast_title")},
+                     {"broadcast_stream_id", tokens_.value("broadcast_stream_id")},
                      {"scopes", tokens_.value("scopes")},
                      {"access_token", access},
                      {"refresh_token", refresh},
@@ -480,22 +489,24 @@ void OAuthAccount::selectBroadcast(const QString &id) {
         return;
     const auto it = std::find_if(broadcasts_.cbegin(), broadcasts_.cend(),
                                  [&](const Broadcast &b) { return b.id == id; });
-    if (it == broadcasts_.cend()) {
+    if (it == broadcasts_.cend() && (id != broadcastId() || broadcastStreamId().isEmpty())) {
         fail("OAuthChooseBroadcast");
         return;
     }
-    if (it->streamId.isEmpty()) {
+    const auto selection =
+        it == broadcasts_.cend() ? Broadcast{id, broadcastTitle(), broadcastStreamId()} : *it;
+    if (selection.streamId.isEmpty()) {
         fail("OAuthUnboundBroadcast");
         return;
     }
-    const auto streamId = it->streamId;
-    withAccess([this, streamId, id] {
+    const auto streamId = selection.streamId;
+    withAccess([this, streamId, selection] {
         QUrl url("https://www.googleapis.com/youtube/v3/liveStreams");
         QUrlQuery query;
         query.addQueryItem("part", "cdn");
         query.addQueryItem("id", streamId);
         url.setQuery(query);
-        request(url, {}, false, true, [this, id](HttpResult result) {
+        request(url, {}, false, true, [this, selection](HttpResult result) {
             if (result.status == 401) {
                 expireSession();
                 return;
@@ -517,15 +528,28 @@ void OAuthAccount::selectBroadcast(const QString &id) {
             }
             setStatus("OAuthConnected");
             armMaintenance();
-            tokens_["broadcast_id"] = id;
-            if (!persist()) {
-                fail("OAuthVaultFailed");
+            if (!rememberBroadcast(selection)) {
                 return;
             }
-            emit changed();
             emit ingestReady(server, key);
         });
     });
+}
+bool OAuthAccount::rememberBroadcast(const Broadcast &broadcast) {
+    if (provider_ != Provider::YouTube || !linked() || broadcast.id.isEmpty() || broadcast.id.size() > 256 ||
+        broadcast.title.size() > 1024 || broadcast.streamId.size() > 256)
+        return false;
+    const auto previous = tokens_;
+    tokens_["broadcast_id"] = broadcast.id;
+    tokens_["broadcast_title"] = broadcast.title;
+    tokens_["broadcast_stream_id"] = broadcast.streamId;
+    if (!persist()) {
+        tokens_ = previous;
+        setStatus("OAuthVaultFailed");
+        return false;
+    }
+    emit changed();
+    return true;
 }
 void OAuthAccount::disconnectAccount() {
     cancel();

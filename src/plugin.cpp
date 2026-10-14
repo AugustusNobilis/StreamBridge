@@ -28,7 +28,7 @@ MODULE_EXPORT const char *obs_module_author(void) {
 static std::unique_ptr<sb::OutputManager> manager;
 static QPointer<sb::Dock> dock;
 static std::unique_ptr<sb::PlatformHub> hub;
-static QPointer<QWidget> chatDock, infoDock;
+static QPointer<QWidget> chatDock;
 static QPointer<QAction> menu;
 static bool exited = false;
 static void frontendEvent(enum obs_frontend_event event, void *) {
@@ -65,7 +65,7 @@ void obs_module_post_load(void) {
     hub = std::make_unique<sb::PlatformHub>(manager->account(0), manager->account(1));
     QObject::connect(hub.get(), &sb::PlatformHub::youtubeBroadcastEnded, manager.get(),
                      [] { manager->stop(0); });
-    infoDock = sb::createInfoDock(*hub, QString::fromUtf8(path));
+    const auto configPath = QString::fromUtf8(path);
     sb::initializeUpdates(QString::fromUtf8(path));
     auto *checker = sb::updateChecker();
     const auto canRestart = [] {
@@ -88,18 +88,14 @@ void obs_module_post_load(void) {
     dock = new sb::Dock(*manager, *hub);
     if (!obs_frontend_add_dock_by_id("streambridge", "StreamBridge", dock)) {
         delete dock;
-        delete infoDock;
         hub.reset();
         manager.reset();
         return;
     }
-    chatDock = sb::createChatDock(*hub);
+    chatDock = sb::createChatDock(*hub, configPath);
     if (!obs_frontend_add_dock_by_id("streambridge-chat", sb::text("ChatDockTitle").toUtf8().constData(),
                                      chatDock))
         delete chatDock;
-    if (!obs_frontend_add_dock_by_id("streambridge-info", sb::text("InfoDockTitle").toUtf8().constData(),
-                                     infoDock))
-        delete infoDock;
     menu = static_cast<QAction *>(
         obs_frontend_add_tools_menu_qaction(sb::text("Settings").toUtf8().constData()));
     QObject::connect(menu, &QAction::triggered, dock, &sb::Dock::openSettings);
@@ -117,8 +113,6 @@ void obs_module_unload(void) {
         obs_frontend_remove_dock("streambridge");
     if (!exited && chatDock)
         obs_frontend_remove_dock("streambridge-chat");
-    if (!exited && infoDock)
-        obs_frontend_remove_dock("streambridge-info");
     if (menu)
         delete menu;
     hub.reset();

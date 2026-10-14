@@ -1,6 +1,6 @@
 # Set up YouTube in StreamBridge
 
-These instructions require **StreamBridge 0.2.3 or newer**. A stream key is enough to send video. Connect an account through your own Google Cloud project for combined chat, viewer counts and stream information editing.
+These instructions require **StreamBridge 0.2.4 or newer**. A stream key is enough to send video. Connect an account through your own Google Cloud project for combined chat, viewer counts and YouTube broadcast controls.
 
 Each user creates their own project. Personal setup does not require publishing the application to everyone or sending account credentials to the plugin author.
 
@@ -84,25 +84,23 @@ StreamBridge uses an existing broadcast. It does not create the broadcast in Stu
 3. Wait for confirmation that the server and key were saved. You do not need to copy the key manually in this case.
 4. Check your encoding settings and click **Save**.
 5. In the main StreamBridge dock, click **Start** beside YouTube.
-6. In **StreamBridge — Stream information → YouTube**, click **Go live on YouTube**. The plugin checks the incoming signal and waits for confirmation. If the signal is not ready, retry in a few seconds.
+6. In **StreamBridge → YouTube**, click **Go live on YouTube**. The plugin checks the incoming signal and waits for confirmation. If the signal is not ready, retry in a few seconds.
 
 To change broadcasts, stop the YouTube output in StreamBridge, select the new broadcast in settings and start the output again.
 
-## 7. Enable chat and stream controls
+## 7. Enable chat and check the selected broadcast
 
-1. In OBS's **Docks** menu, enable **StreamBridge — Chat** and **StreamBridge — Stream information**.
-2. Enable **Connect chat** in the chat dock. YouTube messages display a platform icon.
-3. Right-click a message to delete it or ban its author. These actions require appropriate permissions.
-4. Select **YouTube** in the information dock and edit the title.
-5. For categories, enter a two-letter region such as **US**, click **Find categories** and select a result.
-6. Click **Publish title and category**. The existing YouTube description is preserved; the plugin no longer offers a description editor.
-7. For **Gaming**, click **Choose game in YouTube Studio**. Select a game title in the opened broadcast's settings and save. YouTube's public API exposes the category but no separate game-title field.
+1. Enable **StreamBridge — Chat** in **Docks**, then check **Connect chat**.
+2. Check the selected broadcast title below the YouTube status. Chat uses the connected account; a stream key alone cannot provide chat or viewers.
+3. Selection survives closing Settings and restarting OBS. If missing or completed, the plugin looks for an active broadcast. Load the list and choose explicitly when several broadcasts are active.
+4. You can select while streaming: this changes chat/viewer monitoring only, without replacing the running output's server or key.
+5. If chat is missing, check the channel and Studio chat settings. Temporary network failures retry automatically; permission and quota errors have separate status messages.
+6. Optionally enable **Quiet sound for new messages**. It is off by default and loaded history is silent.
 
-Chat, viewer counts and information refer to the selected broadcast. API calls consume **your Google Cloud project's quota**. Description and go-live notification fields have been removed from the plugin.
-
+The stream information dock has been removed. Click **Open YouTube Studio** in the main YouTube section to edit title, description, category and game in the platform editor.
 ## 8. End the broadcast from OBS
 
-1. In **StreamBridge — Stream information → YouTube**, click **End YouTube broadcast**.
+1. In **StreamBridge → YouTube**, click **End YouTube broadcast**.
 2. Check the title in the confirmation and confirm. This broadcast cannot be resumed afterward.
 3. Wait for successful completion. After YouTube confirms, the plugin stops its YouTube output; Twitch keeps running.
 
@@ -136,9 +134,9 @@ Counts refresh about once a minute. Chat requests no longer cause viewer refresh
 
 1. Prepare an encoder broadcast in YouTube Studio and copy its stream key.
 2. Open **StreamBridge Settings → YouTube** and select the primary server.
-3. Paste the key into **Stream key** and click **Save key now (encrypted)**. The field clears after saving.
+3. Paste the key into **Stream key** and click **Save server and key (encrypted)**. The field clears after saving.
 4. Click **Save** at the bottom of settings.
 5. Click **Start** beside YouTube in StreamBridge and check the signal in Studio.
 6. If auto-start is disabled, start the broadcast in Studio manually.
 
-A stream key sends video to the platform but does not connect chat, viewer counts or the information editor through the API.
+A stream key sends video to the platform but does not connect chat, viewer counts through the API.

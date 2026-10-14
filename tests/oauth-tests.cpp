@@ -283,6 +283,9 @@ int main(int argc, char **argv) {
                 "desktop credential absent from plaintext vault");
         file.close();
         googleSaved["expires_at"] = QDateTime::currentSecsSinceEpoch() - 1;
+        googleSaved["broadcast_id"] = "selected-before-restart";
+        googleSaved["broadcast_title"] = "Remember this title";
+        googleSaved["broadcast_stream_id"] = "bound-before-restart";
         require(vault.put("YouTube/oauth", QJsonDocument(googleSaved).toJson(), error),
                 "expired Google fixture saved");
         FakeHttp resumeHttp;
@@ -294,6 +297,18 @@ int main(int argc, char **argv) {
                         renewed.form.queryItemValue("grant_type") == "refresh_token",
                     "Google refresh after restart includes imported credential");
             renewed.callback({200, token("renewed-access", "renewed-refresh"), false});
+            require(resumed.broadcastId() == "selected-before-restart" &&
+                        resumed.broadcastTitle() == "Remember this title" &&
+                        resumed.broadcastStreamId() == "bound-before-restart",
+                    "selected broadcast metadata survives restart and OAuth refresh");
+            resumed.fetchIngest();
+            require(resumed.busy(), "broadcast list request is pending");
+            resumed.cancelPending();
+            bool maintenanceActive = false;
+            for (auto *timer : resumed.findChildren<QTimer *>())
+                maintenanceActive = maintenanceActive || timer->isActive();
+            require(!resumed.busy() && resumed.linked() && maintenanceActive && resumeHttp.requests.empty(),
+                    "closing settings during a request preserves session maintenance");
             require(
                 QJsonDocument::fromJson(vault.get("YouTube/oauth", error)).object().value("client_secret") ==
                     "desktop-fixture-secret",

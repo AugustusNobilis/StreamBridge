@@ -14,9 +14,11 @@ QString endpointName(size_t index) {
 }
 QString validateServer(const QString &server) {
     const QUrl url(server, QUrl::StrictMode);
+    const bool youtubeBackup = (url.host() == "a.rtmps.youtube.com" || url.host() == "b.rtmps.youtube.com") &&
+                               url.path() == "/live2" && url.query() == "backup=1";
     if (!url.isValid() || url.scheme() != "rtmps" || url.host().isEmpty() || !url.userInfo().isEmpty() ||
-        url.hasQuery() || url.hasFragment() || server.contains(QChar('\n')) || server.contains(QChar('\r')) ||
-        url.port(443) < 1)
+        (url.hasQuery() && !youtubeBackup) || url.hasFragment() || server.contains(QChar('\n')) ||
+        server.contains(QChar('\r')) || url.port(443) < 1)
         return "Use an RTMPS URL without credentials, query parameters or fragment.";
     return {};
 }

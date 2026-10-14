@@ -1,24 +1,24 @@
-# StreamBridge 0.2.3
+# StreamBridge 0.2.4
 
 ## Русский
 
 Предварительная версия для Windows x64 и OBS Studio 32 с Qt 6.8.
 
-- **Счётчик YouTube:** обновления больше не пропускаются при загрузке чата. Поддерживаются числовые и строковые значения. Подтверждённый ноль отображается как **0**; отсутствующее поле в активном эфире — как `0*` с пояснением «ноль или скрытый счётчик». Ошибка API, ещё не начатый и завершённый эфир показывают **—**.
-- **Начало и завершение эфира:** в панели **StreamBridge — Данные трансляции → YouTube** появились соответствующие кнопки. Сначала запустите отправку видео в основной панели, затем нажмите **Начать эфир YouTube**. Плагин проверяет сигнал и ждёт подтверждения YouTube.
-- **Завершение:** после подтверждения в плагине и успешного ответа YouTube эфир завершается, а выход YouTube останавливается. Twitch продолжает работать. Завершённый эфир нельзя возобновить.
-- **Панель данных упрощена:** описание и уведомления удалены. Изменение названия и категории сохраняет существующее описание на YouTube.
-- **Категория «Игры»:** названия категорий переведены на язык интерфейса; кнопка **Выбрать игру в YouTube Studio** открывает выбранный эфир. Отдельное название игры публичный API YouTube не позволяет задать.
+- Панель «Данные трансляции» удалена. Начало и завершение эфира YouTube перенесены в основной блок YouTube. Название, описание, категорию и игру меняйте в YouTube Studio.
+- Исправлено сохранение сервера: применение эфира YouTube сохраняет выбранный маршрут, а «Сохранить сервер и ключ» записывает оба значения. Резервный адрес с `backup=1` проходит проверку.
+- Выбранный эфир и его название восстанавливаются после закрытия настроек, перезапуска OBS и обновления OAuth-токена.
+- Чат получает резервный идентификатор из данных эфира. Временные сетевые ошибки повторяются автоматически. Если сохранённый эфир отсутствует или завершён, плагин ищет активный; при неоднозначности просит выбрать вручную. Чат и зрители следуют за выбранным эфиром без замены ключа работающего выхода.
+- Сообщения YouTube имеют полупрозрачный красный фон, Twitch — фиолетовый. Добавлен отключаемый тихий звук: по умолчанию выключен, история не озвучивается, между сигналами не меньше 1,5 секунды.
 
-### Установка
+### Как обновиться
 
-1. Для первой установки скачайте **obs-streambridge-0.2.3-windows-x64-setup.exe** из Assets.
-2. Для старой установки используйте **updater.exe** либо **Настройки StreamBridge → Обновления** с включёнными предварительными версиями.
-3. При ручной установке закройте OBS и выберите его корневую папку, содержащую **bin → 64bit → obs64.exe**. Настройки и ключи сохраняются.
+1. В настройках плагина откройте **Обновления**, включите предварительные версии и установите **0.2.4**. Либо скачайте **updater.exe** из Assets.
+2. Для первой установки скачайте **obs-streambridge-0.2.4-windows-x64-setup.exe** и выберите корневую папку OBS после его закрытия.
+3. Откройте настройки YouTube и проверьте сервер и название выбранного эфира. В чате включите **Подключить чат**, при желании — **Тихий звук новых сообщений**.
 
-[Инструкция YouTube](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.ru.md) · [Инструкция Twitch](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.ru.md)
+[Настройка YouTube](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.ru.md) · [Настройка Twitch](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.ru.md)
 
-Новые действия API проверены автоматическими сценариями; их проверка на реальном эфире остаётся за пользователем. Пакеты пока не подписаны. Официальная версия бесплатна, лицензия GPL-2.0-or-later. Автор — [AugustusNobilis](https://github.com/AugustusNobilis).
+`0*` у зрителей означает отсутствие числа в ответе YouTube: возможны ноль зрителей или скрытая статистика. `—` означает недоступные данные; подсказка показывает статус и выбранный эфир. Исправления проверяются на изолированных ответах API; аккаунт знакомого пользователя не проверялся. Официальная версия бесплатна, GPL-2.0-or-later, автор [AugustusNobilis](https://github.com/AugustusNobilis).
 
 ---
 
@@ -26,18 +26,18 @@
 
 A preview for Windows x64 and OBS Studio 32 with Qt 6.8.
 
-- **YouTube viewers:** chat traffic no longer causes viewer refreshes to be skipped. Numeric and string counts are supported. A confirmed zero displays **0**; an omitted count during a live broadcast displays `0*` with a zero-or-hidden explanation. API failures, upcoming broadcasts and ended broadcasts display **—**.
-- **Go live and end broadcast:** controls are available under **StreamBridge — Stream information → YouTube**. Start sending video from the main dock, then click **Go live on YouTube**. The plugin checks the signal and waits for YouTube confirmation.
-- **Ending:** after confirmation in the plugin and a successful YouTube response, the broadcast ends and the YouTube output stops. Twitch continues. A completed broadcast cannot be resumed.
-- **Simpler information dock:** description and notification fields have been removed. Title/category edits preserve the existing YouTube description.
-- **Gaming:** category names follow the interface language. **Choose game in YouTube Studio** opens the selected broadcast because the public API does not support setting the specific game title.
+- Removed the stream information dock. YouTube start/end controls moved to the main YouTube section. Edit title, description, category and game in YouTube Studio.
+- Fixed server persistence: applying a YouTube broadcast preserves the selected route; **Save server and key** saves both. The official backup address with `backup=1` passes validation.
+- The selected broadcast and its title survive reopening Settings, restarting OBS and refreshing OAuth tokens.
+- Chat falls back to the broadcast's chat identifier. Temporary network failures retry automatically. Missing or completed selections trigger active-broadcast discovery; ambiguous choices require explicit selection. Chat and viewers follow the selected broadcast without replacing a running output's key.
+- YouTube chat rows have a translucent red background; Twitch rows are purple. Optional quiet notifications are off by default, silent for history and limited to one sound per 1.5 seconds.
 
-### Installation
+### Update
 
-1. For a first installation, download **obs-streambridge-0.2.3-windows-x64-setup.exe** from Assets.
-2. For an existing installation, use **updater.exe** or **StreamBridge Settings → Updates** with preview releases enabled.
-3. For manual installation, close OBS and select its root folder containing **bin → 64bit → obs64.exe**. Settings and credentials are preserved.
+1. Open **Updates** in plugin settings, enable previews and install **0.2.4**. Alternatively, download **updater.exe** from Assets.
+2. For a first installation, download **obs-streambridge-0.2.4-windows-x64-setup.exe**, close OBS and select its root folder.
+3. Check the server and selected broadcast title in YouTube settings. Enable **Connect chat** and optionally **Quiet sound for new messages**.
 
-[YouTube instructions](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.en.md) · [Twitch instructions](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.en.md)
+[YouTube setup](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.en.md) · [Twitch setup](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.en.md)
 
-New API actions have automated coverage; real-broadcast acceptance remains for the user. Packages are currently unsigned. The official version is free, licensed under GPL-2.0-or-later. Created by [AugustusNobilis](https://github.com/AugustusNobilis).
+`0*` means YouTube omitted the count: there may be zero viewers or hidden statistics. A dash means unavailable data; hover for status and the selected broadcast. Fixes use isolated provider-response tests; the friend's live account was not inspected. The official version is free, GPL-2.0-or-later, by [AugustusNobilis](https://github.com/AugustusNobilis).

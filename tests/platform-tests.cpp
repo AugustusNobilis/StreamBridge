@@ -67,14 +67,121 @@ static QJsonObject stream(const QString &state) {
 static QJsonObject transition(const QString &state) {
     return {{"id", "broadcast-1"}, {"status", QJsonObject{{"lifeCycleStatus", state}}}};
 }
-static void awaitRequest(FakeHttp &http) {
+static void awaitRequest(FakeHttp &http, int milliseconds = 3500) {
     QElapsedTimer timeout;
     timeout.start();
-    while (http.calls.empty() && timeout.elapsed() < 3500) {
+    while (http.calls.empty() && timeout.elapsed() < milliseconds) {
         QCoreApplication::processEvents();
         QThread::msleep(10);
     }
     require(!http.calls.empty(), "bounded transition poll arrives");
+}
+static void recoveryTests() {
+    QTemporaryDir directory;
+    SecretStore store(directory.path());
+    QString error;
+    const QJsonObject session{{"client_id", "recovery-client"},
+                              {"access_token", "fixture-token"},
+                              {"refresh_token", "fixture-refresh"},
+                              {"expires_at", QDateTime::currentSecsSinceEpoch() + 14400},
+                              {"scopes", QJsonArray{"https://www.googleapis.com/auth/youtube.force-ssl"}}};
+    require(store.put("YouTube/oauth", QJsonDocument(session).toJson(), error) &&
+                store.put("YouTube/stream-key", "unchanged-key", error),
+            "recovery fixture saved");
+    FakeHttp ya, ta, yh, th;
+    OAuthAccount youtube(Provider::YouTube, store, nullptr, &ya),
+        twitch(Provider::Twitch, store, nullptr, &ta);
+    youtube.resume();
+    unsigned ingestChanges = 0;
+    QObject::connect(&youtube, &OAuthAccount::ingestReady, [&] { ++ingestChanges; });
+    PlatformHub hub(youtube, twitch, nullptr, &yh, &th);
+    QCoreApplication::processEvents();
+    auto discovery = yh.take();
+    require(QUrlQuery(discovery.url).queryItemValue("broadcastStatus") == "active" &&
+                !QUrlQuery(discovery.url).hasQueryItem("mine"),
+            "active discovery uses one supported API filter");
+    auto live = broadcast("live")["items"].toArray()[0].toObject();
+    live["snippet"] = QJsonObject{{"title", "Selected live"}, {"liveChatId", "canonical-chat"}};
+    auto other = live;
+    other["id"] = "broadcast-2";
+    discovery.callback({200, {{"items", QJsonArray{live, other}}}, false});
+    require(youtube.broadcastId().isEmpty() && hub.status(0) == "YouTubeMultipleLive",
+            "ambiguous simultaneous broadcasts are never guessed");
+    hub.refresh();
+    yh.answer(200, {{"items", QJsonArray{live}}});
+    require(youtube.broadcastId() == "broadcast-1" && youtube.broadcastTitle() == "Selected live" &&
+                ingestChanges == 0 && store.get("YouTube/stream-key", error) == "unchanged-key",
+            "unique active discovery persists monitoring without changing the stream key");
+    auto withoutChat = video("42");
+    auto item = withoutChat["items"].toArray()[0].toObject();
+    auto details = item["liveStreamingDetails"].toObject();
+    details.remove("activeLiveChatId");
+    item["liveStreamingDetails"] = details;
+    withoutChat["items"] = QJsonArray{item};
+    yh.answer(200, withoutChat);
+    auto fallback = yh.take();
+    require(fallback.url.path().endsWith("/liveBroadcasts") &&
+                QUrlQuery(fallback.url).queryItemValue("id") == "broadcast-1",
+            "missing video chat ID falls back to authenticated broadcast metadata");
+    fallback.callback({200, {{"items", QJsonArray{live}}}, false});
+    require(hub.info(0).chatId == "canonical-chat" && hub.info(0).viewers == 42,
+            "canonical broadcast chat and actual viewer count coexist");
+    hub.setChatEnabled(true);
+    yh.answer(200, withoutChat);
+    yh.answer(200, {{"items", QJsonArray{live}}});
+    QCoreApplication::processEvents();
+    unsigned silentMessages = 0, audibleMessages = 0;
+    QObject::connect(&hub, &PlatformHub::messageReceived, [&](const ChatMessage &message) {
+        message.notify ? ++audibleMessages : ++silentMessages;
+    });
+    QJsonObject chatItem{
+        {"id", "initial"},
+        {"snippet", QJsonObject{{"displayMessage", "Hello"},
+                                {"publishedAt", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}}}};
+    yh.answer(200, {{"items", QJsonArray{chatItem}}, {"pollingIntervalMillis", 5000}});
+    require(silentMessages == 1 && audibleMessages == 0, "initial YouTube history has no notification sound");
+    awaitRequest(yh, 6500);
+    yh.answer(503);
+    require(hub.chatStatus(0) == "ChatRetrying", "temporary chat outage schedules automatic retry");
+    awaitRequest(yh, 6500);
+    chatItem["id"] = "new";
+    yh.answer(200, {{"items", QJsonArray{chatItem}}, {"pollingIntervalMillis", 60000}});
+    require(audibleMessages == 1 && hub.chatStatus(0) == "ChatConnected",
+            "chat recovers without manual reconnect and notifies only new messages");
+    hub.setChatEnabled(false);
+    hub.setChatEnabled(true);
+    yh.answer(200, withoutChat);
+    yh.answer(200, {{"items", QJsonArray{live}}});
+    QCoreApplication::processEvents();
+    yh.answer(404,
+              {{"error", QJsonObject{{"errors", QJsonArray{QJsonObject{{"reason", "liveChatNotFound"}}}}}}});
+    require(hub.chatStatus(0) == "ChatWaitingForBroadcast", "stale chat ID triggers broadcast lookup");
+    hub.refresh();
+    yh.answer(200, video("43"));
+    live["snippet"] = QJsonObject{{"title", "Selected live"}, {"liveChatId", "replacement-chat"}};
+    yh.answer(200, {{"items", QJsonArray{live}}});
+    require(hub.info(0).chatId == "replacement-chat" && hub.info(0).viewers == 43,
+            "stale video chat ID is replaced by broadcast metadata while viewers keep refreshing");
+    hub.setChatEnabled(false);
+    auto completed = video();
+    item = completed["items"].toArray()[0].toObject();
+    details = item["liveStreamingDetails"].toObject();
+    details["actualEndTime"] = "2026-10-14T15:00:00Z";
+    item["liveStreamingDetails"] = details;
+    completed["items"] = QJsonArray{item};
+    hub.refresh();
+    yh.answer(200, completed);
+    other["snippet"] = QJsonObject{{"title", "Next live"}, {"liveChatId", "next-chat"}};
+    yh.answer(200, {{"items", QJsonArray{other}}});
+    require(youtube.broadcastId() == "broadcast-2" && ingestChanges == 0,
+            "completed selection follows the new active broadcast without changing ingest");
+    auto nextVideo = video("7");
+    item = nextVideo["items"].toArray()[0].toObject();
+    item["id"] = "broadcast-2";
+    nextVideo["items"] = QJsonArray{item};
+    yh.answer(200, nextVideo);
+    require(hub.info(0).viewers == 7, "viewer requests follow the recovered broadcast ID");
+    hub.shutdown();
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -142,6 +249,8 @@ int main(int argc, char **argv) {
         upcoming["items"] = QJsonArray{item};
         hub.refresh();
         yh.answer(200, upcoming);
+        yh.answer(200, broadcast("ready"));
+        yh.answer(200, {{"items", QJsonArray{}}});
         require(hub.info(0).viewers == -1 && !hub.info(0).viewersUnreported,
                 "upcoming broadcast is not reported as a live zero");
         auto ended = video("12");
@@ -152,6 +261,7 @@ int main(int argc, char **argv) {
         ended["items"] = QJsonArray{item};
         hub.refresh();
         yh.answer(200, ended);
+        yh.answer(200, {{"items", QJsonArray{}}});
         require(hub.info(0).viewers == -1 && hub.info(0).broadcastState == "complete",
                 "completed broadcast does not retain a stale audience count");
         hub.refresh();
@@ -216,6 +326,7 @@ int main(int argc, char **argv) {
         yh.answer(200, transition("complete"));
         require(endedSignals == 1, "confirmed end signals only YouTube output to stop");
         yh.answer(200, ended);
+        yh.answer(200, {{"items", QJsonArray{}}});
         hub.transitionYouTube(true);
         yh.answer(200, broadcast("complete"));
         require(yh.calls.empty() && hub.youtubeControlStatus() == "YouTubeInvalidTransition",
@@ -352,6 +463,7 @@ int main(int argc, char **argv) {
                 "disconnect cancels stale responses and permissions");
         hub.shutdown();
         require(yh.calls.empty() && th.calls.empty(), "shutdown cancels queued API requests");
+        recoveryTests();
         return 0;
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;

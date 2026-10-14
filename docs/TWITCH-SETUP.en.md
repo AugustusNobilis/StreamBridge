@@ -59,17 +59,14 @@ Keep OBS settings open until the connection finishes. The plugin detects complet
 
 Connecting an account does not start a broadcast. The Twitch control in StreamBridge starts its own output independently of OBS's main streaming button.
 
-## 6. Enable chat and edit stream information
+## 6. Enable chat
 
-1. In OBS's **Docks** menu, enable **StreamBridge — Chat** and **StreamBridge — Stream information**.
-2. Enable **Connect chat** in the chat dock. Twitch messages display their own platform icon.
-3. Right-click a message to delete it or ban its author, then confirm. These actions require appropriate rights in the connected channel.
-4. Select **Twitch** in the information dock and enter the stream title.
-5. Type a game or category name in the search field and click **Find categories**.
-6. Select a result and click **Publish title and category**.
+1. Enable **StreamBridge — Chat** in OBS's **Docks** menu.
+2. Check **Connect chat** and wait for the Twitch status.
+3. Twitch messages have a soft purple background. Optionally enable **Quiet sound for new messages**; it is off by default.
+4. Right-click a message for moderation. Channel-owner permissions are required.
 
-Edit the title and category in the plugin. Configure go-live notification text in the Twitch dashboard; the separate StreamBridge field has been removed.
-
+The separate information dock has been removed. Edit title, description, category and notifications in the [Twitch dashboard](https://dashboard.twitch.tv/).
 ## Troubleshooting
 
 | Message or problem | What to do |
@@ -90,8 +87,8 @@ Edit the title and category in the plugin. Configure go-live notification text i
 1. Open [Creator Dashboard](https://dashboard.twitch.tv/) → **Settings → Stream**.
 2. Copy the primary stream key.
 3. Open **StreamBridge Settings → Twitch** and select the automatic server.
-4. Paste the key into **Stream key** and click **Save key now (encrypted)**. The field clears after saving.
+4. Paste the key into **Stream key** and click **Save server and key (encrypted)**. The field clears after saving.
 5. Click **Save** at the bottom.
 6. Click **Start** beside Twitch and check the signal in Creator Dashboard.
 
-This sends video but does not connect chat, viewer counts or the information editor through the API. Do not publish stream keys or account tokens.
+This sends video but does not connect chat, viewer counts through the API. Do not publish stream keys or account tokens.

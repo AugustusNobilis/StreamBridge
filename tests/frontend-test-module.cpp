@@ -153,13 +153,17 @@ void tick() {
 }
 void start() {
     auto *window = static_cast<QWidget *>(obs_frontend_get_main_window());
-    for (const auto *id : {"streambridge", "streambridge-chat", "streambridge-info"}) {
+    for (const auto *id : {"streambridge", "streambridge-chat"}) {
         if (!window->findChild<QDockWidget *>(id)) {
             finish(false, "production StreamBridge dock missing");
             return;
         }
     }
-    report("PASS: all three production StreamBridge docks registered in OBS");
+    if (window->findChild<QDockWidget *>("streambridge-info")) {
+        finish(false, "removed stream information dock is still registered");
+        return;
+    }
+    report("PASS: two production docks registered; stream information dock removed");
     const auto *chat = window->findChild<QDockWidget *>("streambridge-chat");
     if (chat->windowTitle() != "StreamBridge — Chat" ||
         QString::fromUtf8(obs_source_get_display_name("streambridge_browser")) != "Proxied Browser Source") {

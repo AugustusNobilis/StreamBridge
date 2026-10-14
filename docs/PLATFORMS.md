@@ -1,41 +1,35 @@
-# Platform docks (0.2.3)
+# Platform controls (0.2.4)
 
-The three docks appear in OBS's Docks menu. The stream dock keeps existing output controls. Chat and stream information use the connected account, independent of the encoder state.
+OBS registers two docks: StreamBridge and StreamBridge — Chat. The separate stream information dock is removed. YouTube lifecycle controls live in the main YouTube section; metadata editing opens the selected broadcast in Studio.
 
-## Viewers
+## YouTube selection and statistics
 
-YouTube counts refer to the broadcast explicitly selected under Settings → YouTube → Use selected broadcast. Twitch counts refer to the validated account's own channel. API polling runs about once a minute. Zero is grey, positive counts are muted red; disconnected, failed, upcoming or ended broadcasts display a grey dash. For a live YouTube broadcast with an omitted count, the badge displays 0* with an explicit zero-or-hidden explanation; it is not a measured zero. String and numeric counts are supported. Info refreshes queue behind chat traffic instead of being skipped. A manual stream key does not identify an authorized API account.
+The account vault stores the selected broadcast ID, title and bound stream ID together with encrypted session data. Refresh-token rotation preserves this metadata. Settings restores the selected entry even before a broadcast list has been fetched. Applying an event's key does not replace the chosen ingest route. Save server and key persists both immediately; the official backup=1 query is accepted only for YouTube's RTMPS ingest hosts and path.
 
-## Chat and moderation
+Viewer polling uses videos.list for the selected ID. liveBroadcasts.list supplies the chat ID when the video resource lacks one or the previous chat ID has ended. Missing/completed selection triggers bounded, paginated active-broadcast discovery; a matching bound stream is preferred and ambiguous choices are never guessed. An upcoming selection only follows an active event with the same bound stream. Discovery changes monitoring metadata only, never the output server/key or broadcast lifecycle. Selection can also be changed explicitly during streaming without changing the running output.
 
-Click Connect chat to enable reception. Disabling it disconnects Twitch and stops scheduling YouTube polling. Chat is off after OBS restarts. At most 500 messages stay in memory; chat is not written to disk. Messages are rendered as plain text with native platform icons. Twitch IRC tags are parsed with bounded buffers; duplicate messages are suppressed.
+Counts accept nonnegative integer JSON numbers and digit strings. A missing count during a live broadcast shows 0* with a zero-or-hidden explanation; it is not a confirmed zero. Errors, upcoming events and completed events show a dash. Requests are coalesced and queued behind chat, not skipped. Hovering the badge shows API status and selected broadcast title.
 
-Twitch connects with TLS to irc.chat.twitch.tv:6697. YouTube uses liveChatMessages.list with nextPageToken and a polling interval no shorter than the platform requests (minimum 5 seconds). This can consume substantial YouTube API quota during long streams. A polling failure pauses YouTube chat until Refresh is pressed. Account changes discard pending results and old messages.
+## Chat
 
-Right-click a message to copy, delete or permanently ban its author. Delete/ban requires confirmation and is sent only for that selected platform/message/user. The local message is removed only after a successful API response. YouTube owner/moderator messages and Twitch owner/moderator or foreign shared-chat messages do not offer moderation actions. The server remains authoritative about permissions; failed requests remain visible as errors. There is no bulk clear-chat action and no outgoing chat composer.
+YouTube uses liveChat/messages; Twitch uses authenticated IRC over TLS. Rows have translucent red/purple backgrounds, platform icons and plain-text content. History is bounded to 500 displayed messages and never logged to disk. Moderation uses exact message/user/room IDs and confirms destructive actions.
 
-## Stream information
+Temporary YouTube network failures, HTTP 5xx and rate limiting retry with bounded backoff. Missing/ended chat IDs trigger fresh broadcast metadata; disabled chat and permission/quota errors are reported separately. Account or broadcast changes invalidate pending responses.
 
-Read current title/category, search Twitch categories or load assignable YouTube categories for a two-letter country code, then explicitly Publish. YouTube description editing and notification drafts have been removed. A fresh video snippet is fetched before videos.update so existing tags and language fields are preserved. Title/category updates preserve the existing description, tags and language and do not transition a broadcast. Editable content is not replaced by periodic polling while the user has unsaved edits.
+The optional quiet sound defaults off and is saved in ui.ini. A locally synthesized 160 ms mono PCM tone has a faded envelope and peak amplitude below -31 dBFS; Windows session/system volume still applies. History is silent; new messages share a 1.5-second cooldown. No media downloads, global volume changes or Qt Multimedia dependency are required. Desktop audio capture can include the notification.
 
-For YouTube Gaming, the public API has no writable game-title field. A Studio shortcut opens the selected broadcast for that choice. Category names follow the plugin language.
+## Lifecycle, security and validation
 
-## YouTube broadcast controls
+Go live checks fresh state and active ingest, performs the monitor/testing transition if required and polls intermediate states. End requires confirmation and stops only the YouTube output after verified API completion. Twitch remains independent.
 
-The information dock offers explicit Go live and End broadcast actions. Start the encoder output first. Go live fetches fresh broadcast state and verifies that the bound stream is active, performs the monitor/testing transition if required, and polls intermediate states with a bounded retry count. End requires UI confirmation and stops only the plugin's YouTube output after the API confirms completion. A failed or mismatched response does not stop output. Account changes invalidate pending operations. Lifecycle requests use the existing youtube.force-ssl scope.
+API requests keep TLS verification, fixed provider hosts, no redirects, bounded response size and timeouts. OAuth and stream credentials use Windows DPAPI. Browser-source proxies do not apply to OAuth, chat or RTMPS.
 
-## Permissions and network
-
-YouTube: youtube.force-ssl. Twitch: channel:read:stream_key, channel:manage:broadcast, chat:read, moderator:manage:chat_messages, moderator:manage:banned_users. Reconnect existing read-only sessions before using write features. Tokens are stored with Windows DPAPI, refreshed by the account service and never included in diagnostics.
-
-API calls use the existing fixed HTTPS host allowlist, standard TLS verification, no redirects, a 1 MiB response bound and request timeouts. Requests are serialized per platform; queued requests and responses are invalidated on account or selected-broadcast changes. Browser-source proxies apply only to their source, not to OAuth, chat, metadata or RTMPS outputs.
-
-Registered application IDs are not bundled. Exact Google Desktop and Twitch Public registrations, live chat reception, real moderation and the new broadcast lifecycle controls still require real-account acceptance. Google account connection has been reported working by the user. Automated tests are not a substitute for these checks.
+Real-account reception and provider-specific failures require user acceptance. Automated tests cover selection persistence, discovery, chat fallback/retry, viewer updates, UI restoration and notification policy without accessing a real account.
 
 ## References
 
-- [Twitch IRC](https://dev.twitch.tv/docs/chat/irc)
-- [Twitch API: channel information, viewers, categories and moderation](https://dev.twitch.tv/docs/api/reference/)
+- [YouTube broadcasts and chat IDs](https://developers.google.com/youtube/v3/live/docs/liveBroadcasts)
+- [YouTube active-broadcast filters](https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/list)
+- [YouTube viewer count semantics](https://developers.google.com/youtube/v3/docs/videos#liveStreamingDetails.concurrentViewers)
 - [YouTube live chat messages](https://developers.google.com/youtube/v3/live/docs/liveChatMessages/list)
-- [YouTube chat bans](https://developers.google.com/youtube/v3/live/docs/liveChatBans/insert)
-- [YouTube video updates](https://developers.google.com/youtube/v3/docs/videos/update)
+- [Twitch IRC](https://dev.twitch.tv/docs/chat/irc)

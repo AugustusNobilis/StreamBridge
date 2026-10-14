@@ -1,4 +1,14 @@
 # Executed validation
+## YouTube persistence and chat recovery 0.2.4 / 2026-10-14
+
+All nine CTest suites passed during this change. OAuth, platform and UI suites were rerun after their final fixes. Regression cases cover the official backup URL, immediate server/key saving, preserving custom routes when applying a broadcast key, saved selection across dialog reopen/restart/token rotation, and keeping session maintenance alive after cancelling a pending settings request.
+
+Provider fixtures cover unambiguous active-broadcast discovery, refusing ambiguous candidates, canonical chat-ID fallback, replacement of stale chat IDs, recovery after HTTP 503, updated viewer counts for a recovered broadcast and monitoring without changing stored keys. They do not access the friend's account or mutate a real live event.
+
+Production Russian and English chat widgets were rendered; the Russian colored rows and connected main-dock controls were visually inspected. Notification tests verify default-off persistence, silent history, a shared cooldown, and a 160 ms faded PCM tone below -31 dBFS peak. This verifies waveform properties, not perceived loudness on every audio device.
+
+A separate portable OBS registered exactly two production docks, with the information dock absent. Production browser creation/destruction, standard RTMP streaming to loopback, coexistence with both instrumented plugin outputs, independent stops and normal shutdown all passed. The user's installed OBS was not changed or closed.
+
 
 ## YouTube lifecycle and viewer counts 0.2.3 / 2026-10-14
 

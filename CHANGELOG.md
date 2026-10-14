@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4 — 2026-10-14
+
+- Remove the stream information dock; retain YouTube lifecycle controls in the main dock.
+- Persist server/key together, preserve manual YouTube routes and accept the official backup query.
+- Restore broadcast selection and metadata across UI reopen, restart and token refresh.
+- Recover missing broadcast/chat IDs and transient chat failures; refresh viewers for the recovered event.
+- Add translucent platform chat rows and optional quiet, throttled notifications with silent history.
+
+
 ## 0.2.3 — YouTube broadcast controls and viewer counts, 2026-10-14
 
 - Queue viewer refreshes behind chat traffic, support numeric and string counts, and distinguish measured zero from YouTube's omitted zero-or-hidden field with a 0* badge and explanation.

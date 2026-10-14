@@ -58,6 +58,8 @@ Dock::Dock(OutputManager &manager, PlatformHub &hub, QWidget *parent) : QWidget(
         v->addLayout(buttons);
         connect(start_[i], &QPushButton::clicked, this, [this, i] { manager_.start(i); });
         connect(stop_[i], &QPushButton::clicked, this, [this, i] { manager_.stop(i); });
+        if (i == 0)
+            v->addWidget(createYouTubeControls(hub, box));
         layout->addWidget(box);
     }
     auto *all = new QHBoxLayout;
@@ -89,8 +91,16 @@ Dock::Dock(OutputManager &manager, PlatformHub &hub, QWidget *parent) : QWidget(
     }
     layout->addStretch();
     connect(&hub, &PlatformHub::changed, this, [this, &hub] {
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < 2; ++i) {
             viewers_[i]->setCount(hub.info(i).viewers, hub.info(i).viewersUnreported);
+            viewers_[i]->setToolTip(viewers_[i]->toolTip() + "\n" + text(hub.status(i).toUtf8().constData()) +
+                                    (i == 0 && !hub.account(0).broadcastId().isEmpty()
+                                         ? "\n" + text("SelectedBroadcast")
+                                                      .arg(hub.account(0).broadcastTitle().isEmpty()
+                                                               ? hub.account(0).broadcastId()
+                                                               : hub.account(0).broadcastTitle())
+                                         : QString()));
+        }
     });
     connect(&manager_, &OutputManager::changed, this, &Dock::refresh);
     refresh();

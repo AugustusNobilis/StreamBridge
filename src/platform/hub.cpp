@@ -133,6 +133,9 @@ void PlatformHub::syncAccounts() {
             youtubeControlStatus_ = "YouTubeControlHint";
             ++chatGeneration_;
             youtubePending_ = false;
+            youtubeChatPrimed_ = false;
+            youtubeChatNeedsLookup_ = false;
+            youtubeRetrySeconds_ = 5;
             pageToken_.clear();
             youtubeTimer_.stop();
             youtubeBlocked_ = false;
@@ -229,12 +232,13 @@ void PlatformHub::pollInfo(int p) {
         const auto id = account(0).broadcastId();
         if (id.isEmpty()) {
             status_[0] = "PlatformSelectBroadcast";
-            emit changed();
+            infoPending_[0] = true;
+            discoverYouTubeBroadcast(true);
             return;
         }
         infoPending_[0] = true;
         request(0, "videos", query({{"part", "snippet,liveStreamingDetails"}, {"id", id}}), "GET", {},
-                [this](HttpResult r) {
+                [this, id](HttpResult r) {
                     infoPending_[0] = false;
                     if (!result(0, r)) {
                         info_[0].viewers = -1;
@@ -242,15 +246,19 @@ void PlatformHub::pollInfo(int p) {
                         return;
                     }
                     const auto items = r.json["items"].toArray();
-                    if (items.isEmpty()) {
+                    if (items.size() != 1 || items[0].toObject()["id"].toString() != id) {
                         info_[0] = {};
                         status_[0] = "PlatformSelectBroadcast";
+                        infoPending_[0] = true;
+                        discoverYouTubeBroadcast(true);
                         return;
                     }
                     const auto video = items[0].toObject(), snippet = video["snippet"].toObject();
                     const auto live = video["liveStreamingDetails"].toObject();
                     auto &info = info_[0];
                     info.title = snippet["title"].toString();
+                    if (account(0).broadcastTitle() != info.title)
+                        account(0).rememberBroadcast({id, info.title, account(0).broadcastStreamId()});
                     info.categoryId = snippet["categoryId"].toString();
                     info.loaded = true;
                     const bool ended = !live["actualEndTime"].toString().isEmpty();
@@ -263,19 +271,16 @@ void PlatformHub::pollInfo(int p) {
                         info.viewers = -1;
                         info.viewersUnreported = false;
                     }
-                    const auto chat = live["activeLiveChatId"].toString();
-                    if (info.chatId != chat) {
-                        ++chatGeneration_;
-                        youtubePending_ = false;
-                        info.chatId = chat;
-                        pageToken_.clear();
-                        youtubeTimer_.stop();
+                    const auto chat = ended ? QString() : live["activeLiveChatId"].toString();
+                    if (ended || (!chat.isEmpty() && !youtubeChatNeedsLookup_))
+                        setYouTubeChat(chat);
+                    if (ended) {
+                        infoPending_[0] = true;
+                        discoverYouTubeBroadcast(true);
+                    } else if (chat.isEmpty() || !liveNow || youtubeChatNeedsLookup_) {
+                        infoPending_[0] = true;
+                        loadYouTubeBroadcast(id, !live.contains("concurrentViewers"));
                     }
-                    if (chatEnabled_ && chat.isEmpty())
-                        chatStatus_[0] = "ChatNoLiveChat";
-                    if (chatEnabled_ && !youtubeBlocked_ && !youtubePending_ && !chat.isEmpty() &&
-                        !youtubeTimer_.isActive())
-                        youtubeTimer_.start(0);
                 });
     } else {
         const auto user = account(1).userId();
@@ -305,12 +310,124 @@ void PlatformHub::pollInfo(int p) {
         });
     }
 }
+void PlatformHub::setYouTubeChat(const QString &id) {
+    if (info_[0].chatId != id) {
+        ++chatGeneration_;
+        youtubePending_ = false;
+        youtubeChatPrimed_ = false;
+        youtubeRetrySeconds_ = 5;
+        youtubeBlocked_ = false;
+        info_[0].chatId = id;
+        pageToken_.clear();
+        youtubeTimer_.stop();
+    }
+    if (!chatEnabled_)
+        return;
+    if (id.isEmpty())
+        chatStatus_[0] = "ChatNoLiveChat";
+    else if (!youtubeBlocked_ && !youtubePending_ && !youtubeTimer_.isActive())
+        youtubeTimer_.start(0);
+}
+void PlatformHub::loadYouTubeBroadcast(const QString &id, bool missingCount) {
+    request(0, "liveBroadcasts", query({{"part", "snippet,status,contentDetails"}, {"id", id}}), "GET", {},
+            [this, id, missingCount](HttpResult r) {
+                infoPending_[0] = false;
+                if (!result(0, r)) {
+                    if (chatEnabled_ && info_[0].chatId.isEmpty())
+                        chatStatus_[0] = status_[0];
+                    return;
+                }
+                const auto items = r.json["items"].toArray();
+                if (items.size() != 1 || items[0].toObject()["id"].toString() != id) {
+                    infoPending_[0] = true;
+                    discoverYouTubeBroadcast(true);
+                    return;
+                }
+                const auto b = items[0].toObject();
+                const auto snippet = b["snippet"].toObject();
+                const auto state = b["status"].toObject()["lifeCycleStatus"].toString();
+                youtubeChatNeedsLookup_ = false;
+                info_[0].broadcastState = state;
+                const auto stream = b["contentDetails"].toObject()["boundStreamId"].toString();
+                if (account(0).broadcastTitle() != snippet["title"].toString() ||
+                    account(0).broadcastStreamId() != stream)
+                    account(0).rememberBroadcast({id, snippet["title"].toString(), stream});
+                if (state == "live" && missingCount) {
+                    info_[0].viewers = 0;
+                    info_[0].viewersUnreported = true;
+                }
+                setYouTubeChat(state == "complete" ? QString() : snippet["liveChatId"].toString());
+                if (state != "live" && !youtubeControlPending_) {
+                    infoPending_[0] = true;
+                    discoverYouTubeBroadcast(state == "complete");
+                }
+            });
+}
+void PlatformHub::discoverYouTubeBroadcast(bool allowUnique, QString page, QList<Broadcast> candidates,
+                                           unsigned pages) {
+    auto q = query({{"part", "snippet,contentDetails,status"},
+                    {"broadcastStatus", "active"},
+                    {"broadcastType", "all"},
+                    {"maxResults", "50"}});
+    if (!page.isEmpty())
+        q.addQueryItem("pageToken", page);
+    request(0, "liveBroadcasts", q, "GET", {}, [this, allowUnique, candidates, pages](HttpResult r) mutable {
+        if (!result(0, r)) {
+            infoPending_[0] = false;
+            if (chatEnabled_ && info_[0].chatId.isEmpty())
+                chatStatus_[0] = status_[0];
+            return;
+        }
+        for (const auto &item : r.json["items"].toArray()) {
+            const auto b = item.toObject();
+            if (b["status"].toObject()["lifeCycleStatus"] != "live")
+                continue;
+            const Broadcast candidate{b["id"].toString(), b["snippet"].toObject()["title"].toString(),
+                                      b["contentDetails"].toObject()["boundStreamId"].toString()};
+            if (!candidate.id.isEmpty() && candidate.id.size() <= 256 && candidate.title.size() <= 1024 &&
+                candidate.streamId.size() <= 256 &&
+                std::none_of(candidates.begin(), candidates.end(),
+                             [&](const Broadcast &existing) { return existing.id == candidate.id; }))
+                candidates.append(candidate);
+        }
+        const auto nextPage = r.json["nextPageToken"].toString();
+        if (!nextPage.isEmpty() && nextPage.size() <= 4096 && pages < 19) {
+            discoverYouTubeBroadcast(allowUnique, nextPage, candidates, pages + 1);
+            return;
+        }
+        infoPending_[0] = false;
+        // Never choose from a truncated list or guess between simultaneous broadcasts.
+        if (!nextPage.isEmpty()) {
+            status_[0] = "PlatformSelectBroadcast";
+            return;
+        }
+        QList<Broadcast> matched;
+        for (const auto &b : candidates)
+            if (!account(0).broadcastStreamId().isEmpty() && b.streamId == account(0).broadcastStreamId())
+                matched.append(b);
+        const auto eligible = matched.isEmpty() && allowUnique ? candidates : matched;
+        if (eligible.size() == 1 && eligible[0].id != account(0).broadcastId()) {
+            // Monitoring selection only: never replace the encoder URL/key or start an event.
+            if (!account(0).rememberBroadcast(eligible[0]))
+                status_[0] = "OAuthVaultFailed";
+        } else if (candidates.size() > 1 && matched.size() != 1) {
+            status_[0] = "YouTubeMultipleLive";
+            if (chatEnabled_ && info_[0].chatId.isEmpty())
+                chatStatus_[0] = status_[0];
+        } else if (account(0).broadcastId().isEmpty()) {
+            status_[0] = "PlatformSelectBroadcast";
+            if (chatEnabled_)
+                chatStatus_[0] = status_[0];
+        }
+    });
+}
 void PlatformHub::setChatEnabled(bool enabled) {
     if (stopped_ || chatEnabled_ == enabled)
         return;
     chatEnabled_ = enabled;
     ++chatGeneration_;
     youtubePending_ = false;
+    youtubeChatPrimed_ = false;
     if (enabled) {
         ircDenied_ = false;
         refresh();
@@ -338,10 +455,23 @@ void PlatformHub::pollYouTubeChat() {
         if (!chatEnabled_)
             return;
         if (!result(0, r)) {
-            youtubeBlocked_ = true;
-            chatStatus_[0] = status_[0];
+            const auto errors = r.json["error"].toObject()["errors"].toArray();
+            const auto reason = errors.isEmpty() ? QString() : errors[0].toObject()["reason"].toString();
+            if (reason == "liveChatEnded" || reason == "liveChatNotFound") {
+                youtubeChatNeedsLookup_ = true;
+                setYouTubeChat({});
+                chatStatus_[0] = "ChatWaitingForBroadcast";
+            } else if (r.transportError || r.status >= 500 || r.status == 429) {
+                chatStatus_[0] = "ChatRetrying";
+                youtubeTimer_.start(static_cast<int>(youtubeRetrySeconds_ * 1000));
+                youtubeRetrySeconds_ = std::min(60u, youtubeRetrySeconds_ * 2);
+            } else {
+                youtubeBlocked_ = true;
+                chatStatus_[0] = reason == "liveChatDisabled" ? "ChatDisabledOnYouTube" : status_[0];
+            }
             return;
         }
+        youtubeRetrySeconds_ = 5;
         chatStatus_[0] = "ChatConnected";
         pageToken_ = r.json["nextPageToken"].toString();
         for (const auto &value : r.json["items"].toArray()) {
@@ -358,12 +488,16 @@ void PlatformHub::pollYouTubeChat() {
                 if (!user.isEmpty())
                     emit messagesRemoved(0, {}, user);
             } else if (!s["displayMessage"].toString().isEmpty()) {
-                deliver({0, item["id"].toString(), a["channelId"].toString(), a["displayName"].toString(),
-                         s["displayMessage"].toString(), info_[0].chatId,
-                         QDateTime::fromString(s["publishedAt"].toString(), Qt::ISODate),
-                         !a["isChatOwner"].toBool() && !a["isChatModerator"].toBool()});
+                deliver(
+                    {0, item["id"].toString(), a["channelId"].toString(), a["displayName"].toString(),
+                     s["displayMessage"].toString(), info_[0].chatId,
+                     QDateTime::fromString(s["publishedAt"].toString(), Qt::ISODate),
+                     !a["isChatOwner"].toBool() && !a["isChatModerator"].toBool(),
+                     youtubeChatPrimed_ && QDateTime::fromString(s["publishedAt"].toString(), Qt::ISODate) >=
+                                               QDateTime::currentDateTimeUtc().addSecs(-30)});
             }
         }
+        youtubeChatPrimed_ = true;
         const auto interval = std::max<qint64>(5000, r.json["pollingIntervalMillis"].toInteger(10000));
         youtubeTimer_.start(static_cast<int>(std::min<qint64>(interval, 3600000)));
     });

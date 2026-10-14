@@ -26,6 +26,7 @@ class OAuthAccount final : public QObject {
     void resume();
     void link(const QString &clientId, const QByteArray &desktopSecret = {});
     void cancel();
+    void cancelPending();
     void disconnectAccount();
     void fetchIngest();
     void selectBroadcast(const QString &id);
@@ -36,6 +37,9 @@ class OAuthAccount final : public QObject {
     QByteArray accessToken() const;
     QString userId() const { return tokens_.value("user_id").toString(); }
     QString broadcastId() const { return tokens_.value("broadcast_id").toString(); }
+    QString broadcastTitle() const { return tokens_.value("broadcast_title").toString(); }
+    QString broadcastStreamId() const { return tokens_.value("broadcast_stream_id").toString(); }
+    bool rememberBroadcast(const Broadcast &broadcast);
     bool hasScope(const QString &scope) const { return tokens_.value("scopes").toArray().contains(scope); }
     QString statusKey() const { return status_; }
     const QList<Broadcast> &broadcasts() const { return broadcasts_; }

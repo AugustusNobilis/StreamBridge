@@ -1,0 +1,11 @@
+.deps/
+build*/
+dist/
+stage/
+*.user
+*.pdb
+*.log
+*.dmp
+CMakeUserPresets.json
+secrets*
+.env*

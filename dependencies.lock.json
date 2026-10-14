@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "dependencies": [
+    {"id":"qtbase-source","archive":"qtbase-everywhere-src-6.8.3.tar.xz","url":"https://download.qt.io/archive/qt/6.8/6.8.3/submodules/qtbase-everywhere-src-6.8.3.tar.xz","sha256":"56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80","sourceOnly":true},
+    {"id":"qt-build-recipe","archive":"obs-deps-2025-08-23-source.tar.gz","url":"https://github.com/obsproject/obs-deps/archive/refs/tags/2025-08-23.tar.gz","sha256":"77c112a67bfe04c61fb2d93f1a7ee4dca0eb95075e8ddf4fc1947dd5b770ec82","sourceOnly":true},
+    {"id":"obs-source","archive":"obs-source.zip","url":"https://github.com/obsproject/obs-studio/archive/refs/tags/32.0.4.zip","sha256":"5e17f2e99213af77ee15c047755ee3e3e88b78e5eee17351c113d79671ffb98b","extract":".","directory":"obs-studio-32.0.4"},
+    {"id":"obs-deps","archive":"windows-deps-2025-08-23-x64.zip","url":"https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-2025-08-23-x64.zip","sha256":"8de229cff6f1981508c0eb646b35e644633a5855787b9f5d3b90ae2aeb87ffc1","extract":"obs-deps-2025-08-23-x64","directory":"obs-deps-2025-08-23-x64"},
+    {"id":"qt","archive":"windows-deps-qt6-2025-08-23-x64.zip","url":"https://github.com/obsproject/obs-deps/releases/download/2025-08-23/windows-deps-qt6-2025-08-23-x64.zip","sha256":"c62e82483bc7c0bf199e8ac3220c66a85a6e8a0cd69a05b6d44f873b830e415f","extract":"obs-deps-qt6-2025-08-23-x64","directory":"obs-deps-qt6-2025-08-23-x64"},
+    {"id":"cef","archive":"cef-minimal.tar.bz2","url":"https://cef-builds.spotifycdn.com/cef_binary_154.0.34%2Bg14c5a08%2Bchromium-154.0.8037.98_windows64_minimal.tar.bz2","sha256":"c81c34d048d87276f4a18f0b000206710a1709bb67dd658948b87100e1a538da","extract":"cef","directory":"cef/cef_binary_154.0.34+g14c5a08+chromium-154.0.8037.98_windows64_minimal"},
+    {"id":"nsis","archive":"nsis.zip","url":"https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip","sha256":"c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1","extract":".","directory":"nsis-3.11"},
+    {"id":"obs-runtime","archive":"obs-runtime.zip","url":"https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-x64.zip","sha256":"fd367a7f156319426f1a600720c1288ad0011da168dff41e0f94dbb18cc1dc0f","extract":"obs-runtime","directory":"obs-runtime","testOnly":true},
+    {"id":"mediamtx","archive":"mediamtx.zip","url":"https://github.com/bluenviron/mediamtx/releases/download/v1.21.2/mediamtx_v1.21.2_windows_amd64.zip","sha256":"a84224f5a490855684e62ba6fb71e80ea2a5e16aed61883bb58380290e93e467","extract":"mediamtx","directory":"mediamtx","testOnly":true}
+  ]
+}

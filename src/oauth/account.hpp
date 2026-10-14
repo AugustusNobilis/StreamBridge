@@ -12,6 +12,11 @@ enum class Provider { YouTube, Twitch };
 struct Broadcast {
     QString id, title, streamId;
 };
+struct GoogleDesktopClient {
+    QString id;
+    QByteArray secret;
+};
+GoogleDesktopClient parseGoogleDesktopClient(const QByteArray &json, QString &error);
 class OAuthAccount final : public QObject {
     Q_OBJECT
   public:
@@ -19,7 +24,7 @@ class OAuthAccount final : public QObject {
                  HttpClient *transport = nullptr);
     ~OAuthAccount() override;
     void resume();
-    void link(const QString &clientId);
+    void link(const QString &clientId, const QByteArray &desktopSecret = {});
     void cancel();
     void disconnectAccount();
     void fetchIngest();
@@ -61,7 +66,7 @@ class OAuthAccount final : public QObject {
     QTimer poll_, maintenance_;
     QJsonObject tokens_;
     QString clientId_, label_, status_ = "OAuthDisconnected";
-    QByteArray verifier_, deviceCode_;
+    QByteArray verifier_, deviceCode_, desktopSecret_;
     QUrl redirect_;
     QDateTime deviceExpiry_;
     int interval_ = 5, pages_ = 0;

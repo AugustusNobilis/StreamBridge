@@ -1,5 +1,13 @@
 # Executed validation
 
+## Restart updater and Desktop OAuth 0.2.2 / 2026-10-14
+
+All nine CTest suites passed. After additional UI and restart-guard assertions, OAuth, updates and UI passed again. New OAuth fixtures cover Desktop JSON parsing, Web-client rejection, import size limits, fixed token endpoint despite a supplied alternate URL, secret-free browser URL, encrypted credential persistence, refresh after process-session reconstruction, rotation, disconnect and safe actionable error mapping. These use simulated provider responses and a real TCP loopback callback, not a real Google account.
+
+The production native launcher, standalone restart helper and uncompressed NSIS payload passed isolated OBS-compatible process tests: no file replacement before exit, successful installation followed by automatic relaunch from bin/64bit, byte-identical credential preservation, cancelled shutdown keeping the original process and plugin intact, and no relaunch on a mismatched installed version. Tests run in Unicode workspace paths. Protected-folder UAC accept/cancel and Windows 11 remain unverified manually.
+
+Production Russian/English widgets were rendered and inspected; the Updates tab has one primary action. A real dedicated portable OBS 32.1.2 loaded all three docks and the browser source, passed frontend stream coexistence, and closed normally with active fixture outputs. This frontend run is separate from the restart-helper process test; it does not prove full automatic relaunch of a real OBS UI. Personal OBS was not modified or closed.
+
 ## Platform docks 0.2.0 / 2026-10-14
 
 Nine local CTest suites passed: core, bootstrap, security, OAuth, platforms, proxy, updates, browser settings and UI. Platform fixtures cover selected-broadcast authentication, unavailable/zero/positive viewer counts, YouTube metadata preservation, exact moderation targets and failed operations, duplicate chat IDs, provider polling delay, chat disable during a request and stale responses after disconnect. Twitch metadata and moderation requests use synthetic HTTP replies; the IRC parser is tested independently.

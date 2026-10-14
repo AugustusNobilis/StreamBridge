@@ -2,7 +2,9 @@
 #pragma once
 #include "checker.hpp"
 namespace sb {
-// Launch the verified update in wait-for-OBS mode; never closes OBS or stops a stream.
-bool launchUpdate(const QString &file, const Release &release, QString &error);
+// Launch in wait-for-OBS mode. Optional helper restarts only on success; the caller closes OBS.
+bool launchUpdate(const QString &file, const Release &release, QString &error,
+                  QString *restartCancellation = nullptr);
+void cancelUpdateRestart(const QString &event);
 bool updateInstallerRunning(const QString &file);
 } // namespace sb

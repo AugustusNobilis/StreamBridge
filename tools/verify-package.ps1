@@ -17,6 +17,7 @@ Write-Output 'PASS: standalone updater and pinned corresponding-source hashes'
 $zip = [IO.Compression.ZipFile]::OpenRead("$Dist/obs-streambridge-$version-windows-x64.zip")
 try {
     $names = @($zip.Entries.FullName)
+    if ('data/obs-plugins/obs-streambridge/streambridge-update-helper.exe' -notin $names) { throw 'Missing native restart helper' }
     foreach ($required in @('data/obs-plugins/obs-streambridge/qt-plugins/tls/qschannelbackend.dll','data/obs-plugins/obs-streambridge/qt-plugins/LICENSE.GPL2')) {
         if ($required -notin $names) { throw "Missing TLS runtime/license: $required" }
     }

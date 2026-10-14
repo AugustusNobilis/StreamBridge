@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QListWidget>
 #include <QPalette>
+#include <QPushButton>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <iostream>
@@ -115,6 +116,8 @@ int main(int argc, char **argv) {
                 auto *tabs = settings.findChild<QTabWidget *>();
                 require(tabs && tabs->count() == 7,
                         "settings contain platform, encoding, help, logs, updates and about tabs");
+                require(tabs->widget(5)->findChildren<QPushButton *>().size() == 1,
+                        "updates tab offers one primary action");
                 for (int tab : {0, 1, 3, 5, 6}) {
                     tabs->setCurrentIndex(tab);
                     render(settings, images + "/settings-" + locale + "-" + QString::number(tab) + ".png");

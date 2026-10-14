@@ -89,14 +89,14 @@ int runGui() {
     for (;;) {
         const auto description =
             (root.empty() ? L"OBS не найден. Выберите папку установки." : L"Папка OBS:\n" + root.wstring()) +
-            std::wstring(L"\n\nОбновление 0.1.x / 0.2.0 → 0.2.1 через "
+            std::wstring(L"\n\nОбновление 0.1.x / 0.2.0–0.2.1 → 0.2.2 через "
                          L"GitHub.\nНастройки и ключи сохраняются. "
                          L"Потребуется интернет. Если OBS работает, обновление "
                          L"дождётся его закрытия.");
-        TASKDIALOG_BUTTON buttons[] = {{100, L"Обновить до 0.2.1"}, {101, L"Выбрать папку OBS…"}};
+        TASKDIALOG_BUTTON buttons[] = {{100, L"Обновить до 0.2.2"}, {101, L"Выбрать папку OBS…"}};
         TASKDIALOGCONFIG dialog{sizeof(dialog)};
         dialog.pszWindowTitle = L"StreamBridge Updater";
-        dialog.pszMainInstruction = L"Обновление StreamBridge до 0.2.1";
+        dialog.pszMainInstruction = L"Обновление StreamBridge до 0.2.2";
         dialog.pszContent = description.c_str();
         dialog.dwFlags = TDF_SIZE_TO_CONTENT;
         dialog.dwCommonButtons = TDCBF_CANCEL_BUTTON;
@@ -125,7 +125,7 @@ int runGui() {
     job.cache = fs::temp_directory_path();
     TASKDIALOGCONFIG progress{sizeof(progress)};
     progress.pszWindowTitle = L"StreamBridge Updater";
-    progress.pszMainInstruction = L"Обновление до 0.2.1";
+    progress.pszMainInstruction = L"Обновление до 0.2.2";
     progress.pszContent = L"Подключение к GitHub…";
     progress.dwFlags = TDF_SHOW_PROGRESS_BAR | TDF_SIZE_TO_CONTENT;
     progress.dwCommonButtons = TDCBF_CANCEL_BUTTON;
@@ -140,7 +140,7 @@ int runGui() {
         return 1;
     }
     MessageBoxW(nullptr,
-                L"StreamBridge обновлён до 0.2.1. Теперь можно запустить OBS.\n"
+                L"StreamBridge обновлён до 0.2.2. Теперь можно запустить OBS.\n"
                 L"Следующие обновления доступны в настройках StreamBridge → Обновления.",
                 L"Обновление завершено", MB_OK | MB_ICONINFORMATION);
     return 0;

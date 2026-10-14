@@ -47,6 +47,9 @@ jobs:
           ./tools/test-updater.ps1 -Installer $installer
           ./tools/test-updater.ps1 -Installer $installer -ImmediateExit
           ./tools/test-updater.ps1 -Installer $installer -RestartBeforeInstall
+          ./tools/test-updater.ps1 -Installer $installer -AutoRestart
+          ./tools/test-updater.ps1 -Installer $installer -CancelRestart
+          ./tools/test-updater.ps1 -Installer $installer -RejectRestart
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: windows-x64

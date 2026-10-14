@@ -1,6 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Installer,
       [string]$HostExecutable = "$PSScriptRoot/../build/Release/update-host-fixture.exe",
-      [switch]$ImmediateExit, [switch]$RestartBeforeInstall)
+      [switch]$ImmediateExit, [switch]$RestartBeforeInstall,
+      [switch]$AutoRestart, [switch]$CancelRestart, [switch]$RejectRestart)
 $ErrorActionPreference = 'Stop'
 $workspace = (Resolve-Path "$PSScriptRoot/..").Path
 $fixture = [IO.Path]::GetFullPath((Join-Path $workspace ('.deps/updater-test-' + [Guid]::NewGuid().ToString('N'))))
@@ -10,6 +11,7 @@ $download = Join-Path $fixture 'download'
 New-Item -ItemType Directory -Force "$root/bin/64bit","$root/obs-plugins/64bit","$root/data/obs-plugins/obs-streambridge",$download | Out-Null
 Copy-Item -LiteralPath (Resolve-Path $Installer).Path -Destination "$download/setup.exe"
 Copy-Item -LiteralPath (Resolve-Path $HostExecutable).Path -Destination "$root/bin/64bit/obs64.exe"
+Copy-Item -LiteralPath "$workspace/build/Release/streambridge-update-helper.exe" -Destination "$root/data/obs-plugins/obs-streambridge"
 New-Item -ItemType File "$root/portable_mode.txt" | Out-Null
 Set-Content "$root/data/obs-plugins/obs-streambridge/package.ini" @('[StreamBridge]','Product=obs-streambridge','Version=0.1.0')
 Set-Content "$root/obs-plugins/64bit/obs-streambridge.dll" 'old plugin canary'
@@ -34,6 +36,38 @@ $hostProcess = Start-Process -FilePath "$root/bin/64bit/obs64.exe" -ArgumentList
 try {
     Start-Sleep -Milliseconds 300
     Assert (-not $hostProcess.HasExited) 'isolated host fixture starts'
+    if ($AutoRestart -or $CancelRestart -or $RejectRestart) {
+        $targetVersion = [regex]::Match((Get-Content "$workspace/CMakeLists.txt" -Raw), 'project\(obs-streambridge VERSION ([0-9.]+)').Groups[1].Value
+        if ($RejectRestart) { $targetVersion = '99.0.0' }
+        Set-Content -LiteralPath $control "restart:$targetVersion"
+        Wait-Until { Test-Path -LiteralPath $result } 'Restart launcher did not report'
+        Assert ((Get-Content -LiteralPath $result -Raw).Trim() -eq 'launched') 'restart helper and installer launched'
+        Wait-Until { (Test-Path "$download/update-result.ini") -and (Get-Content "$download/update-result.ini" -Raw) -match 'Status=waiting' } 'Installer did not wait'
+        Assert (((Get-FileHash "$root/obs-plugins/64bit/obs-streambridge.dll").Hash) -eq $oldPlugin) 'no replacement before OBS exit'
+        if ($CancelRestart) {
+            Set-Content -LiteralPath $control 'cancel'
+            Wait-Until { (Test-Path "$download/restart-result.ini") -and (Get-Content "$download/restart-result.ini" -Raw) -match 'Status=cancelled' } 'Restart did not cancel'
+            Wait-Until { (Get-Content "$download/update-result.ini" -Raw) -match 'Status=cancelled' } 'Installer did not cancel'
+            Assert (-not $hostProcess.HasExited) 'cancelled shutdown leaves original OBS running'
+            Assert (((Get-FileHash "$root/obs-plugins/64bit/obs-streambridge.dll").Hash) -eq $oldPlugin) 'cancelled update leaves plugin intact'
+            Assert (-not (Test-Path "$root/bin/64bit/restarted.txt")) 'cancellation does not launch second OBS'
+        } else {
+            Set-Content -LiteralPath $control 'exit'
+            Assert ($hostProcess.WaitForExit(10000)) 'original OBS exits normally'
+            if ($RejectRestart) {
+                Wait-Until { (Test-Path "$download/restart-result.ini") -and (Get-Content "$download/restart-result.ini" -Raw) -match 'Status=failed' } 'Mismatched installation was not rejected' 90
+                Assert (-not (Test-Path "$root/bin/64bit/restarted.txt")) 'mismatched installed version prevents automatic OBS launch'
+                Write-Output "Updater test fixture retained at $fixture"
+                return
+            }
+            Wait-Until { Test-Path "$root/bin/64bit/restarted.txt" } 'OBS did not automatically restart' 90
+            Assert ((Get-Content "$download/update-result.ini" -Raw) -match 'Status=success') 'restart follows successful installation'
+            Assert ((Get-Content "$root/bin/64bit/restarted.txt" -Raw).Replace('\','/').StartsWith($root.Replace('\','/') + '/bin/64bit')) 'restarted OBS uses its binary working directory'
+            Assert (((Get-FileHash "$config/vault.dpapi").Hash) -eq $before) 'automatic restart preserves credentials'
+        }
+        Write-Output "Updater test fixture retained at $fixture"
+        return
+    }
     if ($RestartBeforeInstall) {
         $oldPid = $hostProcess.Id
         $oldCreated = $hostProcess.StartTime.ToUniversalTime().ToFileTimeUtc()

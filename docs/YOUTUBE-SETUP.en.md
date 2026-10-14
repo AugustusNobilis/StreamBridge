@@ -23,7 +23,13 @@ Under **Data Access → Add or remove scopes**, add **https://www.googleapis.com
 3. Copy the **Client ID** ending in **.apps.googleusercontent.com**.
 4. Paste it into **StreamBridge settings → YouTube → Account setup · Client ID**.
 
-Do not choose Web application. Desktop clients use an automatically opened local callback; no manually entered Redirect URI is needed. An API key, stream key or Client Secret is not a Client ID. This version has no Client Secret field and does not send one. If Google rejects token exchange after consent, report the error text without credentials; that may require an integration fix. [Google desktop authorization](https://developers.google.com/youtube/v3/live/guides/auth/installed-apps).
+Open your existing Desktop client in **Google Auth Platform → Clients**, choose **Download JSON**, then open **StreamBridge → YouTube → Connection setup → Import JSON from Google Cloud…** and select that file locally. The Client ID is filled automatically. Click **Connect YouTube account**.
+
+Do not choose Web application. Desktop clients use an automatically opened local callback; no manually entered Redirect URI is needed. Import reads client_id and client_secret from installed; server URLs from the file are ignored. After successful login, these credentials are kept with tokens in the Windows DPAPI vault. Do not send the downloaded JSON to anyone or upload it to GitHub. Manual Client ID entry remains available, but clients requiring client_secret need JSON import. [Google desktop authorization](https://developers.google.com/identity/protocols/oauth2/native-app).
+
+### “Return to OBS StreamBridge” followed by an error in OBS
+
+The local page acknowledges the browser response; it does not confirm token exchange. Version 0.2.1 and older did not send a Desktop client's client_secret, which could cause failure after consent. Update to 0.2.2 or newer, import your existing Desktop client JSON and connect again. For invalid_client, check the client still exists and download fresh JSON. For invalid_grant, restart login and keep OBS settings open. Adding a test user again is only relevant to a Google tester-access denial.
 
 ## 3. Connect
 
@@ -46,7 +52,7 @@ StreamBridge uses an existing broadcast; it does not create, bind or publish one
 
 - Tester-related 403: verify the project and exact account in **Audience → Test users**.
 - redirect_uri_mismatch: use a **Desktop app** client instead of Web.
-- invalid_client or token exchange error: verify the desktop Client ID; an error after consent may need an integration fix.
+- invalid_client or missing client_secret: import fresh JSON for your Desktop client and reconnect.
 - Empty broadcast list: check the selected channel and an unfinished encoder broadcast, then load again.
 - Unbound broadcast: configure its stream/key in Studio and select it again.
 - API/quota error: check API enablement, channel permissions and project quota; retry after resolving the cause.

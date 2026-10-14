@@ -8,6 +8,20 @@ Var UpdatePid
 Var UpdateCreated
 Var UpdateHandle
 Var UpdateRetries
+Var UpdateCancelHandle
+
+Function CheckUpdateCancelled
+  ${If} $UpdateCancelHandle != 0
+    System::Call 'kernel32::WaitForSingleObject(p $UpdateCancelHandle, i 0) i.r0'
+    ${If} $0 != 258
+      StrCpy $ErrorCode 1223
+      StrCpy $UpdateStatus "cancelled"
+      Call WriteUpdateResult
+      SetErrorLevel 1223
+      Quit
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
 
 Function WriteUpdateResult
   ${If} $UpdateMode == 1
@@ -34,6 +48,7 @@ FunctionEnd
 
 Function WaitForUpdate
   StrCpy $UpdateMode 0
+  StrCpy $UpdateCancelHandle 0
   ${GetParameters} $0
   ClearErrors
   ${GetOptions} $0 "/UPDATEPID=" $UpdatePid
@@ -43,6 +58,16 @@ Function WaitForUpdate
   StrCpy $UpdateStatus "failed"
   ${GetOptions} $0 "/UPDATECREATED=" $UpdateCreated
   IfErrors update_invalid
+  ClearErrors
+  ${GetOptions} $0 "/UPDATECANCEL=" $1
+  IfErrors update_no_cancel
+  System::Call 'kernel32::OpenEventW(i 0x100000, i 0, w r1) p.r2'
+  StrCpy $UpdateCancelHandle $2
+  ${If} $UpdateCancelHandle == 0
+    Goto update_invalid
+  ${EndIf}
+  Call CheckUpdateCancelled
+  update_no_cancel:
   ${If} $UpdatePid == ""
   ${OrIf} $UpdatePid == 0
   ${OrIf} $UpdateCreated == ""
@@ -121,6 +146,7 @@ Function WaitForUpdate
   StrCpy $UpdateStatus "waiting"
   Call WriteUpdateResult
   update_wait:
+  Call CheckUpdateCancelled
   System::Call 'kernel32::WaitForSingleObject(p $UpdateHandle, i 500) i.r0'
   ${If} $0 == 258
     Goto update_wait
@@ -130,6 +156,7 @@ Function WaitForUpdate
   ${EndIf}
   System::Call 'kernel32::CloseHandle(p $UpdateHandle)'
   update_install:
+  Call CheckUpdateCancelled
   ; Keep the mutex until process exit. Never terminate OBS or its helpers.
   StrCpy $UpdateStatus "installing"
   Call WriteUpdateResult

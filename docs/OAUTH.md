@@ -2,7 +2,7 @@
 
 Step-by-step user guides: **[YouTube — Русский](YOUTUBE-SETUP.ru.md)** · [YouTube — English](YOUTUBE-SETUP.en.md) · **[Twitch — Русский](TWITCH-SETUP.ru.md)** · [Twitch — English](TWITCH-SETUP.en.md). The same guides are available offline from each platform's settings tab.
 
-Manual RTMPS requires no developer application, API key, relay, or OAuth server. Account buttons now execute asynchronous provider flows. No distributor client IDs are bundled: enter your registered public/desktop client ID in the platform tab, then Connect. Never enter a confidential client secret. End-to-end provider consent has not been tested with registered clients in this environment.
+Manual RTMPS requires no developer application, API key, relay, or OAuth server. Account buttons execute asynchronous provider flows. No distributor client IDs are bundled: import your Google Desktop JSON or enter your Twitch Public Client ID, then Connect. Confidential Web application credentials are rejected. End-to-end provider consent has not been tested with registered clients in this environment.
 
 Protocol tests use mock provider responses and a real TCP loopback callback. Executed tests cover PKCE's RFC vector, rejected state injection, cancellation, Twitch polling/slow-down, authorized broadcaster selection, DPAPI persistence, refresh rotation, revoked tokens, YouTube selection and unbound streams, and revocation failure reporting. They do not replace real-account acceptance.
 
@@ -12,7 +12,7 @@ Register a Desktop OAuth client in Google Cloud, enable YouTube Data API v3, con
 
 The implementation requests `youtube.force-ssl`, lists existing unfinished broadcasts, obtains `contentDetails.boundStreamId`, then retrieves the associated live stream's `cdn.ingestionInfo.rtmpsIngestionAddress` and `streamName`. Choose a broadcast and press Use selected broadcast to save these settings. An unbound broadcast must first be configured in YouTube Studio. This integration does not create, bind, transition or publish broadcasts. Lists are capped at 20 pages (1,000 items).
 
-The official native-app token documentation lists client_secret as optional. Use the registered desktop/public-client contract, test the exact registered client, and never insert a confidential application's private secret into a public DLL. If Google requires credentials the distributor cannot safely ship, retain manual mode; a publisher-controlled OAuth backend would require separate design/consent and is not implemented here. Access/refresh tokens belong in the DPAPI vault, never settings or diagnostic exports.
+The official native-app token documentation lists client_secret as optional. For Desktop clients requiring it, the user imports their own Google credential JSON locally (maximum 64 KiB, installed-client schema only). Only ID and secret are read; endpoint URLs remain fixed. The secret is sent to Google's token endpoint for code exchange and refresh, never in the browser URL. It persists alongside access/refresh tokens in DPAPI, is retained during rotation, and is removed on disconnect. Nothing is bundled into a public DLL or diagnostic export. Errors are mapped to safe instructions for missing secret, invalid client and expired grant; raw responses are not displayed.
 
 ## Twitch
 

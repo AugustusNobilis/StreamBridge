@@ -426,6 +426,9 @@ void UpdateChecker::discardReady() {
         QFile::remove(readyFile_);
         const auto dir = QFileInfo(readyFile_).path();
         QFile::remove(dir + "/update-result.ini");
+        QFile::remove(dir + "/restart-result.ini");
+        for (const auto &helper : QDir(dir).entryList({"restart-*.exe"}, QDir::Files))
+            QFile::remove(dir + "/" + helper);
         QDir().rmdir(dir);
     }
     readyFile_.clear();
@@ -443,6 +446,36 @@ bool UpdateChecker::schedule() {
     state_ = "UpdateScheduled";
     emit changed();
     return true;
+}
+bool UpdateChecker::scheduleRestart() {
+    if (!ready())
+        return false;
+    if (!restartGuard_ || !restartGuard_()) {
+        state_ = "UpdateStopOutputs";
+        emit changed();
+        return false;
+    }
+    QString error;
+    if (!launchUpdate(readyFile_, release_, error, &restartCancellation_)) {
+        state_ = error;
+        emit changed();
+        return false;
+    }
+    // Elevation can leave the application responsive long enough to start an output.
+    if (!restartGuard_()) {
+        cancelRestart();
+        return false;
+    }
+    state_ = "UpdateScheduled";
+    emit changed();
+    emit restartRequested();
+    return true;
+}
+void UpdateChecker::cancelRestart() {
+    cancelUpdateRestart(restartCancellation_);
+    restartCancellation_.clear();
+    state_ = "UpdateRestartCancelled";
+    emit changed();
 }
 static std::unique_ptr<UpdateChecker> checker;
 UpdateChecker *updateChecker() {

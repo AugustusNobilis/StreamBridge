@@ -178,6 +178,14 @@ int main(int argc, char **argv) {
         finish(checker);
         check(checker.ready() && checker.progress() == 100, "redirected package downloaded and verified");
         check(sb::verifyUpdateFile(checker.readyFile(), parse()), "cached package exact hash");
+        check(!checker.scheduleRestart() && checker.state() == "UpdateStopOutputs",
+              "restart requires an explicit frontend safety guard");
+        checker.setRestartGuard([] { return false; });
+        check(!checker.scheduleRestart() && checker.state() == "UpdateStopOutputs",
+              "active frontend outputs prevent update launch");
+        checker.setRestartGuard([] { return true; });
+        check(!checker.scheduleRestart() && checker.state() == "UpdateWrongHost",
+              "restart cannot be invoked from a non-OBS host");
         check(!checker.schedule() && checker.state() == "UpdateWrongHost",
               "installation cannot run outside OBS");
     }

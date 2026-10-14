@@ -8,6 +8,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QLabel>
@@ -15,6 +16,7 @@
 #include <QPushButton>
 #include <QTextBrowser>
 #include <QVBoxLayout>
+#include <memory>
 
 namespace sb {
 QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
@@ -57,6 +59,42 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     auto *client = new QLineEdit(account.clientId(), advanced);
     client->setMaxLength(256);
     advancedForm->addRow(text("OAuthClientId"), client);
+    auto credentials = std::make_shared<GoogleDesktopClient>();
+    auto *importClient = new QPushButton(text("OAuthImportGoogle"), advanced);
+    advancedForm->addRow(importClient);
+    importClient->setVisible(index == 0);
+    auto *importStatus = new QLabel(advanced);
+    importStatus->setWordWrap(true);
+    importStatus->setTextFormat(Qt::PlainText);
+    advancedForm->addRow(importStatus);
+    QObject::connect(importClient, &QPushButton::clicked, panel, [=] {
+        const auto filename =
+            QFileDialog::getOpenFileName(panel, text("OAuthImportGoogle"), {}, "Google OAuth (*.json)");
+        if (filename.isEmpty())
+            return;
+        QFile file(filename);
+        QString error = "OAuthGoogleDesktopRequired";
+        GoogleDesktopClient imported;
+        if (file.open(QIODevice::ReadOnly) && file.size() <= 65536) {
+            auto bytes = file.readAll();
+            imported = parseGoogleDesktopClient(bytes, error);
+            bytes.fill('\0');
+        }
+        if (!error.isEmpty()) {
+            importStatus->setText(text(error.toUtf8().constData()));
+            return;
+        }
+        credentials->secret.fill('\0');
+        *credentials = std::move(imported);
+        client->setText(credentials->id);
+        importStatus->setText(text("OAuthGoogleImported"));
+    });
+    QObject::connect(client, &QLineEdit::textEdited, panel, [=] {
+        credentials->secret.fill('\0');
+        *credentials = {};
+        importStatus->clear();
+    });
+    QObject::connect(panel, &QObject::destroyed, [credentials] { credentials->secret.fill('\0'); });
     auto *registerApp = new QPushButton(text("OAuthRegister"), advanced);
     advancedForm->addRow(registerApp);
     form->addRow(advanced);
@@ -65,6 +103,8 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
         client->setVisible(checked);
         advancedForm->labelForField(client)->setVisible(checked);
         registerApp->setVisible(checked);
+        importClient->setVisible(checked && index == 0);
+        importStatus->setVisible(checked && index == 0);
     };
     QObject::connect(advanced, &QGroupBox::toggled, panel, collapse);
     collapse(advanced->isChecked());
@@ -101,11 +141,13 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     copyCode->hide();
     form->addRow(openBrowser);
     form->addRow(copyCode);
-    auto refresh = [&, client, status, connect, cancel, disconnect, fetch, broadcasts, select, index] {
+    auto refresh = [&, client, importClient, status, connect, cancel, disconnect, fetch, broadcasts, select,
+                    index] {
         status->setText(text(account.statusKey().toUtf8().constData()) +
                         (account.label().isEmpty() ? QString() : "\n" + account.label()));
         const bool unlocked = !manager.busy();
         client->setEnabled(unlocked && !account.linked() && !account.busy());
+        importClient->setEnabled(client->isEnabled());
         connect->setEnabled(unlocked && !account.linked() && !account.busy());
         cancel->setVisible(account.busy());
         disconnect->setVisible(account.linked());
@@ -128,13 +170,14 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     };
     QObject::connect(&account, &OAuthAccount::changed, panel, refresh);
     QObject::connect(&manager, &OutputManager::changed, panel, refresh);
-    QObject::connect(connect, &QPushButton::clicked, panel, [&, client, advanced, feedback] {
+    QObject::connect(connect, &QPushButton::clicked, panel, [&, client, advanced, feedback, credentials] {
         if (client->text().trimmed().isEmpty()) {
             advanced->setChecked(true);
             client->setFocus();
             feedback->setText(text("OAuthSetupRequired"));
         } else if (!manager.busy())
-            account.link(client->text());
+            account.link(client->text(),
+                         credentials->id == client->text().trimmed() ? credentials->secret : QByteArray());
     });
     QObject::connect(cancel, &QPushButton::clicked, panel, [&account, refresh] {
         account.cancel();
@@ -169,10 +212,11 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     QObject::connect(copyCode, &QPushButton::clicked, panel, [copyCode] {
         QApplication::clipboard()->setText(copyCode->property("code").toString());
     });
-    QObject::connect(&account, &OAuthAccount::changed, panel, [openBrowser, copyCode, &account] {
+    QObject::connect(&account, &OAuthAccount::changed, panel, [openBrowser, copyCode, feedback, &account] {
         if (!account.busy()) {
             openBrowser->hide();
             copyCode->hide();
+            feedback->clear();
         }
     });
     QObject::connect(&account, &OAuthAccount::ingestReady, panel,

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 — restart updates and Google Desktop credentials, 2026-10-14
+
+- Replace multiple update buttons with one state-dependent action and collapsible preferences.
+- Add Install and restart OBS: normal frontend close, cancellation on veto, and a native helper that restarts OBS with the original user token only after verified installation success. Active streams, recording, replay buffer and virtual camera block installation.
+- Import each user's Google Desktop client JSON locally; include its client_secret in code exchange and refresh, persist it with DPAPI, and explain token failures without displaying provider payloads.
+- Update both offline YouTube guides. No shared Google project or distributor Client ID is bundled.
+- Target the standalone updater at 0.2.2.
+
 ## 0.2.1 — account setup guides and update race fix, 2026-10-14
 
 - Add offline Russian/English step-by-step guides beside the YouTube and Twitch account buttons, using the same documents as GitHub.

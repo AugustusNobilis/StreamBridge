@@ -5,8 +5,10 @@
 #include <QFileInfo>
 #include <QSettings>
 #include <QTemporaryFile>
+#include <QUuid>
 #include <qt_windows.h>
 #include <shellapi.h>
+#include <vector>
 
 namespace sb {
 bool updateInstallerRunning(const QString &file) {
@@ -29,7 +31,63 @@ bool updateInstallerRunning(const QString &file) {
     CloseHandle(process);
     return running;
 }
-bool launchUpdate(const QString &file, const Release &release, QString &error) {
+void cancelUpdateRestart(const QString &event) {
+    if (event.isEmpty())
+        return;
+    HANDLE handle = OpenEventW(EVENT_MODIFY_STATE, FALSE, event.toStdWString().c_str());
+    if (handle) {
+        SetEvent(handle);
+        CloseHandle(handle);
+    }
+}
+static bool startRestartHelper(const QString &helper, HANDLE installer, HANDLE cancel, const QString &root,
+                               const QString &cache, const QString &version) {
+    HANDLE handles[3]{};
+    const HANDLE sources[]{installer, GetCurrentProcess(), cancel};
+    bool ok = true;
+    for (int i = 0; i < 3; ++i)
+        ok = DuplicateHandle(GetCurrentProcess(), sources[i], GetCurrentProcess(), &handles[i], 0, TRUE,
+                             DUPLICATE_SAME_ACCESS) &&
+             ok;
+    SIZE_T size = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
+    std::vector<char> storage(size);
+    STARTUPINFOEXW startup{};
+    startup.StartupInfo.cb = sizeof(startup);
+    startup.lpAttributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage.data());
+    const bool initialized = InitializeProcThreadAttributeList(startup.lpAttributeList, 1, 0, &size) != FALSE;
+    ok = initialized && ok;
+    if (ok)
+        ok = UpdateProcThreadAttribute(startup.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles,
+                                       sizeof(handles), nullptr, nullptr) != FALSE;
+    if (ok) {
+        const bool portable = QCoreApplication::arguments().contains("--portable") ||
+                              QCoreApplication::arguments().contains("-p");
+        auto args = QString("\"%1\" %2 %3 %4 \"%5\" \"%6\" \"%7\" %8")
+                        .arg(QDir::toNativeSeparators(helper))
+                        .arg(quintptr(handles[0]))
+                        .arg(quintptr(handles[1]))
+                        .arg(quintptr(handles[2]))
+                        .arg(QDir::toNativeSeparators(root), QDir::toNativeSeparators(cache), version)
+                        .arg(portable ? 1 : 0)
+                        .toStdWString();
+        PROCESS_INFORMATION process{};
+        ok = CreateProcessW(QDir::toNativeSeparators(helper).toStdWString().c_str(), args.data(), nullptr,
+                            nullptr, TRUE, EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW, nullptr, nullptr,
+                            &startup.StartupInfo, &process) != FALSE;
+        if (ok) {
+            CloseHandle(process.hThread);
+            CloseHandle(process.hProcess);
+        }
+    }
+    if (initialized)
+        DeleteProcThreadAttributeList(startup.lpAttributeList);
+    for (HANDLE handle : handles)
+        if (handle)
+            CloseHandle(handle);
+    return ok;
+}
+bool launchUpdate(const QString &file, const Release &release, QString &error, QString *restartCancellation) {
     const QFileInfo obs(QCoreApplication::applicationFilePath());
     const QString root = QDir(obs.absolutePath() + "/../..").canonicalPath();
     if (obs.fileName().compare("obs64.exe", Qt::CaseInsensitive) != 0 ||
@@ -56,9 +114,27 @@ bool launchUpdate(const QString &file, const Release &release, QString &error) {
         return false;
     }
     const quint64 stamp = (quint64(created.dwHighDateTime) << 32) | created.dwLowDateTime;
-    const auto args = QString("/S /UPDATEPID=%1 /UPDATECREATED=%2 /D=%3")
+    QString cancelName, helper;
+    HANDLE cancel = nullptr;
+    if (restartCancellation) {
+        cancelName = "Local\\StreamBridgeUpdateCancel-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        cancel = CreateEventW(nullptr, TRUE, FALSE, cancelName.toStdWString().c_str());
+        helper = QFileInfo(file).path() + "/restart-" + QUuid::createUuid().toString(QUuid::WithoutBraces) +
+                 ".exe";
+        if (!cancel ||
+            !QFile::copy(root + "/data/obs-plugins/obs-streambridge/streambridge-update-helper.exe",
+                         helper)) {
+            if (cancel)
+                CloseHandle(cancel);
+            CloseHandle(lock);
+            error = "UpdateLaunchFailed";
+            return false;
+        }
+    }
+    const auto args = QString("/S /UPDATEPID=%1 /UPDATECREATED=%2 %3 /D=%4")
                           .arg(GetCurrentProcessId())
                           .arg(stamp)
+                          .arg(cancel ? "/UPDATECANCEL=" + cancelName : QString())
                           .arg(QDir::toNativeSeparators(root))
                           .toStdWString();
     bool elevate = false;
@@ -81,8 +157,18 @@ bool launchUpdate(const QString &file, const Release &release, QString &error) {
     info.lpParameters = args.c_str();
     info.lpDirectory = working.c_str();
     info.nShow = SW_HIDE;
-    const bool ok = ShellExecuteExW(&info) != FALSE;
+    bool ok = ShellExecuteExW(&info) != FALSE;
     const DWORD code = ok ? ERROR_SUCCESS : GetLastError();
+    if (ok && cancel)
+        ok = info.hProcess &&
+             startRestartHelper(helper, info.hProcess, cancel, root, QFileInfo(file).path(), release.version);
+    if (cancel) {
+        if (ok)
+            *restartCancellation = cancelName;
+        else
+            SetEvent(cancel);
+        CloseHandle(cancel);
+    }
     CloseHandle(lock);
     if (info.hProcess)
         CloseHandle(info.hProcess);

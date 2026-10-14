@@ -150,6 +150,7 @@ FunctionEnd
 
 Section "StreamBridge" Main
   Call CheckDirectory
+  Call CheckUpdateCancelled
   ; This dedicated directory contains only files from our package. User settings
   ; live under OBS plugin_config and are never touched by installation/upgrade.
   RMDir /r "$INSTDIR\data\obs-plugins\obs-streambridge\browser"

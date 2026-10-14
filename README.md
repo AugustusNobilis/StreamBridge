@@ -18,7 +18,7 @@
 ### Установка и обновление
 
 1. Скачайте **setup.exe** из [релиза](https://github.com/AugustusNobilis/StreamBridge/releases), закройте OBS и выберите его корневую папку, содержащую `bin/64bit/obs64.exe`. Portable OBS поддерживается.
-2. Уже установлен StreamBridge? Используйте **updater.exe** из релиза 0.2.1 или **Настройки → Обновления**. Для текущих предварительных сборок включите их получение. Настройки и ключи сохранятся.
+2. Уже установлен StreamBridge? Используйте **updater.exe** из релиза 0.2.2 или **Настройки → Обновления**. Для текущих предварительных сборок включите их получение. Настройки и ключи сохранятся.
 3. После установки откройте OBS. В меню **Док-панели** включите StreamBridge, StreamBridge — Чат и StreamBridge — Данные трансляции.
 4. На вкладке YouTube/Twitch выберите сервер, сохраните ключ и настройки — либо привяжите аккаунт. Для чата нажмите **Подключить чат**.
 
@@ -26,13 +26,13 @@
 
 ### Привязка аккаунта
 
-Для ручного ключа регистрация приложения не нужна. **Для чата, зрителей и редактора нужен OAuth Client ID**: Google типа Desktop или Twitch типа Public. Разверните «Настройка подключения · Client ID» и воспользуйтесь кнопкой регистрации. Затем «Привязать аккаунт» откроет сайт площадки; для Twitch появится код подтверждения.
+Для ручного ключа регистрация приложения не нужна. **Для чата, зрителей и редактора нужен свой OAuth-клиент**: Google типа Desktop или Twitch типа Public. Разверните «Настройка подключения · Client ID»: для Google импортируйте JSON клиента, скачанный из Google Cloud; для Twitch вставьте Client ID. Затем «Подключить аккаунт» откроет сайт площадки; для Twitch появится код подтверждения.
 
 Пошаговые инструкции: **[YouTube, включая ошибку 403](docs/YOUTUBE-SETUP.ru.md)** · **[Twitch: что заполнять в форме регистрации](docs/TWITCH-SETUP.ru.md)**. Эти же инструкции доступны без интернета по кнопке на вкладке площадки. Старые подключения нужно переподключить для новых прав.
 
-**Обновление после закрытия OBS:** включённая автозагрузка только скачивает пакет. Во вкладке «Обновления» дождитесь окончания загрузки, нажмите **Установить после закрытия OBS**, затем закройте OBS обычным способом. Версия 0.2.1 исправляет ошибку при закрытии OBS до завершения распаковки установщика. Проверяйте результат по строке текущей версии после следующего запуска.
+**Обновление с перезапуском:** начиная с 0.2.2, во вкладке «Обновления» одна кнопка последовательно проверяет, скачивает и предлагает **Установить и перезапустить OBS**. Перед установкой остановите эфир, запись, буфер повтора и виртуальную камеру. OBS закроется штатно и запустится после успешной установки. Настройки обновлений находятся в раскрывающемся блоке. В старых версиях для перехода на 0.2.2 ещё нужно закрыть и открыть OBS вручную либо использовать updater.exe.
 
-**0.2.1 — предварительная версия.** Чат и действия API проверены автоматическими сценариями; вход и модерация на реальных аккаунтах ещё требуют проверки с зарегистрированными Client ID. Чат YouTube расходует квоту API. Отдельный текст уведомления о начале стрима не поддерживается публичными API: в плагине это локальный черновик, а описание YouTube публикуется отдельно. [Возможности и ограничения](docs/PLATFORMS.md).
+**0.2.2 — предварительная версия.** Чат и действия API проверены автоматическими сценариями; вход и модерация на реальных аккаунтах ещё требуют проверки с зарегистрированными Client ID. Чат YouTube расходует квоту API. Отдельный текст уведомления о начале стрима не поддерживается публичными API: в плагине это локальный черновик, а описание YouTube публикуется отдельно. [Возможности и ограничения](docs/PLATFORMS.md).
 
 ## English
 
@@ -49,15 +49,15 @@ A free OBS Studio plugin for independent simultaneous **YouTube and Twitch** str
 ### Setup
 
 1. Download **setup.exe** from [Releases](https://github.com/AugustusNobilis/StreamBridge/releases), close OBS and select its root folder containing `bin/64bit/obs64.exe`. Portable installations are supported.
-2. Existing users can run **updater.exe** from release 0.2.1, or use **Settings → Updates**. Enable preview releases for current development builds. Settings and credentials are preserved.
+2. Existing users can run **updater.exe** from release 0.2.2, or use **Settings → Updates**. Enable preview releases for current development builds. Settings and credentials are preserved.
 3. Enable the StreamBridge, Chat and Stream information panels in OBS's **Docks** menu.
 4. Select a server and save your stream key, or connect an account. Click **Connect chat** in the chat dock.
 
-For account features, register a **Google Desktop** / **Twitch Public** application and enter its Client ID under Account setup. Follow the **[YouTube guide, including 403 errors](docs/YOUTUBE-SETUP.en.md)** or **[Twitch registration guide](docs/TWITCH-SETUP.en.md)**. The same guides are available offline from each platform tab. Reconnect older accounts to grant current permissions.
+For account features, register your own **Google Desktop** / **Twitch Public** application. Under Account setup, import the Google Desktop JSON or enter the Twitch Client ID. Follow the **[YouTube guide, including 403 errors](docs/YOUTUBE-SETUP.en.md)** or **[Twitch registration guide](docs/TWITCH-SETUP.en.md)**. The same guides are available offline from each platform tab. Reconnect older accounts to grant current permissions.
 
-**Updating after closing OBS:** automatic downloads only fetch the package. Wait for the download to finish, click **Install after OBS closes** in Updates, then close OBS normally. Version 0.2.1 fixes installation when OBS exits before the installer has finished unpacking. Check the installed-version line after restarting.
+**Updating with restart:** from 0.2.2, one primary button checks, downloads, then offers **Install and restart OBS**. Stop streaming, recording, replay buffer and virtual camera before installing. OBS closes normally and restarts after successful installation. Update preferences are collapsible. Older versions still require closing and reopening OBS manually for the upgrade to 0.2.2, or using updater.exe.
 
-**0.2.1 is a development preview.** Real-account consent and moderation acceptance are pending registered Client IDs; automated tests use synthetic provider responses. YouTube chat consumes API quota. Separate go-live notification text is not exposed by these public APIs, so that field is a copyable local draft. [Platform behavior and limits](docs/PLATFORMS.md).
+**0.2.2 is a development preview.** Real-account consent and moderation acceptance are pending registered Client IDs; automated tests use synthetic provider responses. YouTube chat consumes API quota. Separate go-live notification text is not exposed by these public APIs, so that field is a copyable local draft. [Platform behavior and limits](docs/PLATFORMS.md).
 
 ## License / Лицензия
 

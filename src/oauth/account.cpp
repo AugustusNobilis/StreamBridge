@@ -2,6 +2,7 @@
 #include "account.hpp"
 #include "config/config.hpp"
 #include <QJsonDocument>
+#include <QRegularExpression>
 #include <algorithm>
 
 namespace sb {
@@ -9,6 +10,41 @@ static const QString twitchScope = "channel:read:stream_key";
 static const QString twitchScopes = "channel:read:stream_key channel:manage:broadcast chat:read "
                                     "moderator:manage:chat_messages moderator:manage:banned_users";
 static const QString youtubeScope = "https://www.googleapis.com/auth/youtube.force-ssl";
+GoogleDesktopClient parseGoogleDesktopClient(const QByteArray &json, QString &error) {
+    error = "OAuthGoogleDesktopRequired";
+    if (json.size() > 65536)
+        return {};
+    const auto root = QJsonDocument::fromJson(json).object();
+    if (!root.value("installed").isObject() || root.contains("web"))
+        return {};
+    const auto installed = root.value("installed").toObject();
+    const auto id = installed.value("client_id").toString();
+    const auto secret = installed.value("client_secret").toString().toUtf8();
+    if (!QRegularExpression("^[A-Za-z0-9_-]+\\.apps\\.googleusercontent\\.com$").match(id).hasMatch() ||
+        id.size() > 256 || secret.isEmpty() || secret.size() > 4096 || secret.contains('\r') ||
+        secret.contains('\n') || secret.contains('\0'))
+        return {};
+    error.clear();
+    return {id, secret};
+}
+static QString tokenError(Provider provider, const HttpResult &result) {
+    if (result.transportError)
+        return "OAuthNetworkFailed";
+    const auto code = result.json.value("error").toString();
+    // Inspect provider text only to classify it; never display or log raw responses.
+    if (provider == Provider::YouTube &&
+        result.json.value("error_description").toString().contains("client_secret", Qt::CaseInsensitive))
+        return "OAuthGoogleSecretRequired";
+    if (code == "invalid_client")
+        return "OAuthInvalidClient";
+    if (code == "invalid_grant")
+        return "OAuthGrantExpired";
+    if (code == "unauthorized_client")
+        return "OAuthClientType";
+    if (code == "access_denied")
+        return "OAuthDenied";
+    return "OAuthTokenFailed";
+}
 QByteArray OAuthAccount::accessToken() const {
     return tokens_.value("expires_at").toInteger() > QDateTime::currentSecsSinceEpoch() + 30
                ? tokens_.value("access_token").toString().toUtf8()
@@ -50,6 +86,8 @@ OAuthAccount::OAuthAccount(Provider provider, SecretStore &store, QObject *paren
         setStatus("OAuthConnecting", true);
         QUrlQuery form;
         form.addQueryItem("client_id", clientId_);
+        if (!desktopSecret_.isEmpty())
+            form.addQueryItem("client_secret", QString::fromUtf8(desktopSecret_));
         form.addQueryItem("grant_type", "authorization_code");
         form.addQueryItem("code", code);
         form.addQueryItem("redirect_uri", redirect_.toString());
@@ -58,7 +96,7 @@ OAuthAccount::OAuthAccount(Provider provider, SecretStore &store, QObject *paren
             verifier_.fill('\0');
             verifier_.clear();
             if (!result.ok()) {
-                fail("OAuthTokenFailed");
+                fail(tokenError(provider_, result));
                 return;
             }
             if (saveTokens(result.json)) {
@@ -104,6 +142,8 @@ void OAuthAccount::cancel() {
     verifier_.clear();
     deviceCode_.fill('\0');
     deviceCode_.clear();
+    desktopSecret_.fill('\0');
+    desktopSecret_.clear();
     busy_ = false;
 }
 void OAuthAccount::fail(const QString &key) {
@@ -142,17 +182,20 @@ void OAuthAccount::resume() {
         }
     });
 }
-void OAuthAccount::link(const QString &clientId) {
+void OAuthAccount::link(const QString &clientId, const QByteArray &desktopSecret) {
     if (busy_ || linked())
         return;
     const auto id = clientId.trimmed();
     if (id.isEmpty() || id.size() > 256 || id.contains(QChar::Space) || id.contains('\n') ||
-        id.contains('\r')) {
+        id.contains('\r') || desktopSecret.size() > 4096 || desktopSecret.contains('\r') ||
+        desktopSecret.contains('\n') || desktopSecret.contains('\0')) {
         fail("OAuthClientRequired");
         return;
     }
     cancel();
     clientId_ = id;
+    if (provider_ == Provider::YouTube)
+        desktopSecret_ = desktopSecret;
     label_.clear();
     broadcasts_.clear();
     setStatus("OAuthConnecting", true);
@@ -185,7 +228,7 @@ void OAuthAccount::link(const QString &clientId) {
     form.addQueryItem("scopes", twitchScopes);
     request(QUrl("https://id.twitch.tv/oauth2/device"), form, true, false, [this](HttpResult result) {
         if (!result.ok()) {
-            fail("OAuthTokenFailed");
+            fail(tokenError(provider_, result));
             return;
         }
         const auto &json = result.json;
@@ -255,6 +298,13 @@ bool OAuthAccount::saveTokens(const QJsonObject &json) {
                      {"refresh_token", refresh},
                      {"expires_at", QDateTime::currentSecsSinceEpoch() + expires},
                      {"label", label_}};
+    if (provider_ == Provider::YouTube) {
+        const auto secret = tokens_.value("client_secret").toString(QString::fromUtf8(desktopSecret_));
+        if (!secret.isEmpty())
+            next["client_secret"] = secret;
+    }
+    desktopSecret_.fill('\0');
+    desktopSecret_.clear();
     if (json.value("scope").isString())
         next["scopes"] =
             QJsonArray::fromStringList(json.value("scope").toString().split(' ', Qt::SkipEmptyParts));
@@ -285,6 +335,8 @@ void OAuthAccount::refresh(std::function<void()> continuation) {
     form.addQueryItem("client_id", clientId_);
     form.addQueryItem("grant_type", "refresh_token");
     form.addQueryItem("refresh_token", tokens_.value("refresh_token").toString());
+    if (provider_ == Provider::YouTube && tokens_.contains("client_secret"))
+        form.addQueryItem("client_secret", tokens_.value("client_secret").toString());
     request(tokenUrl(), form, true, false, [this, continuation](HttpResult result) {
         if (!result.ok()) {
             if (result.status == 400 || result.status == 401)

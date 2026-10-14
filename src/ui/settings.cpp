@@ -9,6 +9,7 @@
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -306,38 +307,40 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
     updateLayout->addWidget(latestVersion);
     updateLayout->addWidget(note(text("UpdateDisclosure"), updates));
     if (auto *checker = updateChecker()) {
-        auto *repository = new QLineEdit(checker->repository(), updates);
+        auto *options = new QGroupBox(text("UpdateOptions"), updates);
+        options->setCheckable(true);
+        options->setChecked(false);
+        auto *optionsBody = new QWidget(options);
+        auto *optionsLayout = new QVBoxLayout(optionsBody);
+        auto *optionsOuter = new QVBoxLayout(options);
+        optionsOuter->addWidget(optionsBody);
+        optionsBody->hide();
+        connect(options, &QGroupBox::toggled, optionsBody, &QWidget::setVisible);
+        updateLayout->addWidget(options);
+        auto *repository = new QLineEdit(checker->repository(), optionsBody);
         repository->setPlaceholderText("AugustusNobilis/StreamBridge");
-        updateLayout->addWidget(note(text("UpdateRepository"), updates));
-        updateLayout->addWidget(repository);
+        optionsLayout->addWidget(note(text("UpdateRepository"), optionsBody));
+        optionsLayout->addWidget(repository);
         auto *automatic = new QCheckBox(text("UpdateAutomatic"), updates);
         automatic->setChecked(checker->automatic());
-        updateLayout->addWidget(automatic);
+        optionsLayout->addWidget(automatic);
         auto *autoDownload = new QCheckBox(text("UpdateAutoDownload"), updates);
         autoDownload->setChecked(checker->autoDownload());
-        updateLayout->addWidget(autoDownload);
+        optionsLayout->addWidget(autoDownload);
         auto *previews = new QCheckBox(text("UpdatePreviews"), updates);
         previews->setChecked(checker->previews());
-        updateLayout->addWidget(previews);
-        auto *saveUpdates = new QPushButton(text("UpdateSave"), updates);
-        updateLayout->addWidget(saveUpdates);
+        optionsLayout->addWidget(previews);
         auto *feedback = note(text(checker->state().toUtf8().constData()), updates);
         updateLayout->addWidget(feedback);
         auto *progress = new QProgressBar(updates);
         progress->setRange(0, 100);
         updateLayout->addWidget(progress);
-        auto *check = new QPushButton(text("UpdateCheck"), updates);
-        check->setEnabled(checker->available());
-        updateLayout->addWidget(check);
-        auto *open = new QPushButton(text("UpdateOpen"), updates);
-        open->setEnabled(!checker->releaseUrl().isEmpty());
+        auto *action = new QPushButton(updates);
+        action->setObjectName("updatePrimaryAction");
+        updateLayout->addWidget(action);
+        auto *open = new QLabel(updates);
+        open->setOpenExternalLinks(true);
         updateLayout->addWidget(open);
-        auto *download = new QPushButton(text("UpdateDownload"), updates);
-        updateLayout->addWidget(download);
-        auto *cancel = new QPushButton(text("UpdateCancel"), updates);
-        updateLayout->addWidget(cancel);
-        auto *install = new QPushButton(text("UpdateInstall"), updates);
-        updateLayout->addWidget(install);
         const auto saveOptions = [=] {
             if (!checker->configure(repository->text(), automatic->isChecked(), autoDownload->isChecked(),
                                     previews->isChecked())) {
@@ -347,17 +350,19 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
             repository->setText(checker->repository());
             return true;
         };
-        connect(saveUpdates, &QPushButton::clicked, updates, saveOptions);
-        connect(check, &QPushButton::clicked, updates, [=] {
-            if (saveOptions())
+        connect(repository, &QLineEdit::editingFinished, updates, saveOptions);
+        for (auto *option : {automatic, autoDownload, previews})
+            connect(option, &QCheckBox::clicked, updates, saveOptions);
+        connect(action, &QPushButton::clicked, updates, [=, this] {
+            if (checker->busy())
+                checker->cancel();
+            else if (checker->ready()) {
+                if (checker->scheduleRestart())
+                    accept();
+            } else if (checker->canDownload())
+                checker->download();
+            else if (saveOptions())
                 checker->check();
-        });
-        connect(download, &QPushButton::clicked, checker, &UpdateChecker::download);
-        connect(cancel, &QPushButton::clicked, checker, &UpdateChecker::cancel);
-        connect(install, &QPushButton::clicked, checker, &UpdateChecker::schedule);
-        connect(open, &QPushButton::clicked, updates, [checker] {
-            if (!checker->releaseUrl().isEmpty())
-                QDesktopServices::openUrl(checker->releaseUrl());
         });
         const auto refreshUpdate = [=] {
             latestVersion->setText(
@@ -367,17 +372,20 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
             if (!checker->version().isEmpty())
                 message += "\n" + text("UpdateVersion").arg(checker->version());
             feedback->setText(message);
-            open->setEnabled(!checker->releaseUrl().isEmpty());
+            open->setText(checker->releaseUrl().isEmpty()
+                              ? QString()
+                              : "<a href=\"" + checker->releaseUrl().toString().toHtmlEscaped() + "\">" +
+                                    text("UpdateOpen").toHtmlEscaped() + "</a>");
             const bool scheduled = checker->state() == "UpdateScheduled";
-            check->setEnabled(!checker->busy() && checker->readyFile().isEmpty() && !scheduled);
-            saveUpdates->setEnabled(!checker->busy() && !scheduled);
+            action->setText(text(checker->busy()          ? "UpdateCancel"
+                                 : checker->ready()       ? "UpdateInstall"
+                                 : checker->canDownload() ? "UpdateDownload"
+                                                          : "UpdateCheck"));
+            action->setEnabled(checker->available() && !scheduled);
             repository->setEnabled(!checker->busy() && !scheduled);
             automatic->setEnabled(!checker->busy() && !scheduled);
             autoDownload->setEnabled(!checker->busy() && !scheduled);
             previews->setEnabled(!checker->busy() && !scheduled);
-            download->setEnabled(checker->canDownload());
-            install->setEnabled(checker->ready());
-            cancel->setEnabled(checker->busy());
             progress->setVisible(checker->state() == "UpdateDownloading");
             progress->setValue(checker->progress());
         };

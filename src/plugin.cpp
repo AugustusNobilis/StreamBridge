@@ -65,6 +65,23 @@ void obs_module_post_load(void) {
     hub = std::make_unique<sb::PlatformHub>(manager->account(0), manager->account(1));
     infoDock = sb::createInfoDock(*hub, QString::fromUtf8(path));
     sb::initializeUpdates(QString::fromUtf8(path));
+    auto *checker = sb::updateChecker();
+    const auto canRestart = [] {
+        return manager && !manager->busy() && !obs_frontend_streaming_active() &&
+               !obs_frontend_recording_active() && !obs_frontend_replay_buffer_active() &&
+               !obs_frontend_virtualcam_active();
+    };
+    checker->setRestartGuard(canRestart);
+    QObject::connect(checker, &sb::UpdateChecker::restartRequested, checker, [checker, canRestart] {
+        QTimer::singleShot(0, checker, [checker, canRestart] {
+            QPointer<sb::UpdateChecker> alive(checker);
+            auto *window = static_cast<QWidget *>(obs_frontend_get_main_window());
+            if (!canRestart() || !window || !window->close()) {
+                if (alive)
+                    alive->cancelRestart();
+            }
+        });
+    });
     bfree(path);
     dock = new sb::Dock(*manager, *hub);
     if (!obs_frontend_add_dock_by_id("streambridge", "StreamBridge", dock)) {

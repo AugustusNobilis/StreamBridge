@@ -4,6 +4,7 @@
 #include <QPointer>
 #include <QTimer>
 #include <QUrl>
+#include <functional>
 #include <memory>
 namespace sb {
 struct Release {
@@ -35,6 +36,9 @@ class UpdateChecker final : public QObject {
     void download();
     void cancel();
     bool schedule();
+    bool scheduleRestart();
+    void cancelRestart();
+    void setRestartGuard(std::function<bool()> guard) { restartGuard_ = std::move(guard); }
     bool busy() const { return !reply_.isNull(); }
     bool canDownload() const;
     bool ready() const { return !readyFile_.isEmpty() && !busy() && state_ != "UpdateScheduled"; }
@@ -45,6 +49,7 @@ class UpdateChecker final : public QObject {
     QUrl releaseUrl() const { return release_.url; }
   signals:
     void changed();
+    void restartRequested();
 
   private:
     struct Download;
@@ -63,6 +68,8 @@ class UpdateChecker final : public QObject {
     bool automatic_ = false, autoDownload_ = false, previews_ = false, cancelled_ = false;
     int progress_ = 0;
     qint64 lastAttempt_ = 0;
+    QString restartCancellation_;
+    std::function<bool()> restartGuard_;
 };
 UpdateChecker *updateChecker();
 void initializeUpdates(const QString &directory);

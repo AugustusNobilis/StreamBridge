@@ -251,6 +251,72 @@ int main(int argc, char **argv) {
         googleHttp.answer(200, {});
         require(!google.linked() && google.statusKey() == "OAuthDisconnected",
                 "Google session revoked and cleared");
+        const auto credentials = parseGoogleDesktopClient(
+            R"({"installed":{"client_id":"123-desktop.apps.googleusercontent.com","client_secret":"desktop-fixture-secret","token_uri":"https://invalid.example/token"}})",
+            error);
+        require(error.isEmpty() && !credentials.id.isEmpty(), "Google Desktop credential JSON accepted");
+        require(
+            parseGoogleDesktopClient(
+                R"({"web":{"client_id":"123.apps.googleusercontent.com","client_secret":"private"}})", error)
+                    .id.isEmpty() &&
+                error == "OAuthGoogleDesktopRequired",
+            "confidential web credentials rejected");
+        require(parseGoogleDesktopClient(QByteArray(65537, 'x'), error).id.isEmpty(),
+                "oversized credential import rejected");
+        google.link(credentials.id, credentials.secret);
+        const QUrlQuery importedAuth(authorize);
+        require(!importedAuth.hasQueryItem("client_secret") &&
+                    !authorize.toString().contains("desktop-fixture-secret"),
+                "desktop credential never appears in browser URL");
+        callback(QUrl(importedAuth.queryItemValue("redirect_uri")), importedAuth.queryItemValue("state"),
+                 "desktop-code", true);
+        auto importedExchange = googleHttp.take();
+        require(importedExchange.url == QUrl("https://oauth2.googleapis.com/token") &&
+                    importedExchange.form.queryItemValue("client_secret") == "desktop-fixture-secret",
+                "desktop exchange uses credential and fixed Google endpoint");
+        importedExchange.callback({200, token(), false});
+        googleHttp.answer(200, {{"items", QJsonArray{}}});
+        auto googleSaved = QJsonDocument::fromJson(vault.get("YouTube/oauth", error)).object();
+        require(googleSaved.value("client_secret") == "desktop-fixture-secret",
+                "desktop credential persists with encrypted refresh token");
+        require(file.open(QIODevice::ReadOnly) && !file.readAll().contains("desktop-fixture-secret"),
+                "desktop credential absent from plaintext vault");
+        file.close();
+        googleSaved["expires_at"] = QDateTime::currentSecsSinceEpoch() - 1;
+        require(vault.put("YouTube/oauth", QJsonDocument(googleSaved).toJson(), error),
+                "expired Google fixture saved");
+        FakeHttp resumeHttp;
+        {
+            OAuthAccount resumed(Provider::YouTube, vault, nullptr, &resumeHttp);
+            resumed.resume();
+            auto renewed = resumeHttp.take();
+            require(renewed.form.queryItemValue("client_secret") == "desktop-fixture-secret" &&
+                        renewed.form.queryItemValue("grant_type") == "refresh_token",
+                    "Google refresh after restart includes imported credential");
+            renewed.callback({200, token("renewed-access", "renewed-refresh"), false});
+            require(
+                QJsonDocument::fromJson(vault.get("YouTube/oauth", error)).object().value("client_secret") ==
+                    "desktop-fixture-secret",
+                "refresh rotation retains desktop credential");
+        }
+        google.disconnectAccount();
+        googleHttp.answer(200, {});
+        require(vault.get("YouTube/oauth", error).isEmpty(), "disconnect removes desktop credential");
+        for (const auto &failure : std::vector<std::pair<QJsonObject, QString>>{
+                 {{{"error", "invalid_request"},
+                   {"error_description", "client_secret is missing sensitive-fixture"}},
+                  "OAuthGoogleSecretRequired"},
+                 {{{"error", "invalid_client"}}, "OAuthInvalidClient"},
+                 {{{"error", "invalid_grant"}}, "OAuthGrantExpired"},
+                 {{{"error", "unauthorized_client"}}, "OAuthClientType"}}) {
+            google.link(credentials.id);
+            const QUrlQuery request(authorize);
+            callback(QUrl(request.queryItemValue("redirect_uri")), request.queryItemValue("state"), "code",
+                     true);
+            googleHttp.answer(400, failure.first);
+            require(google.statusKey() == failure.second && !google.busy(),
+                    "provider failure mapped to actionable safe message");
+        }
         std::cout << "PASS: OAuth protocol and encrypted persistence tests complete (mock provider APIs)\n";
         return 0;
     } catch (const std::exception &e) {

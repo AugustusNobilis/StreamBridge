@@ -1,68 +1,217 @@
 # OBS StreamBridge
 
-**[Скачать / Download](https://github.com/AugustusNobilis/StreamBridge/releases)** · [Автор / Author](https://github.com/AugustusNobilis) · [GPL-2.0-or-later](LICENSE)
-
 ## Русский
 
-Бесплатный плагин для OBS Studio: одновременные независимые трансляции на **YouTube и Twitch**, общий чат и браузерные источники с отдельными прокси. Windows x64, OBS 32 с Qt 6.8.
+Бесплатный плагин для OBS Studio, который позволяет одновременно вести трансляции на **YouTube и Twitch**, читать сообщения обеих площадок в одном чате и менять данные эфира прямо в OBS.
 
-### Что умеет
+**[Скачать StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.2)** · [Настроить YouTube](docs/YOUTUBE-SETUP.ru.md) · [Настроить Twitch](docs/TWITCH-SETUP.ru.md)
 
-- Общий энкодер или отдельные настройки качества для каждой площадки; запуск, остановка и переподключение независимо от основной трансляции OBS.
-- Счётчик зрителей с иконкой глаза: серый при 0, приглушённый красный при 1 и больше; «—», если данные недоступны.
-- Докпанель общего чата со значками площадок. Удаление сообщений и бан через правую кнопку при наличии прав.
-- Докпанель названия, категории и описания YouTube. Черновик уведомления можно скопировать в кабинет площадки.
-- Браузерные источники с отдельными SOCKS5 / HTTP CONNECT прокси.
-- Русский и английский интерфейс, зашифрованное хранение ключей, обновления через GitHub без установки Git.
+### Возможности
 
-### Установка и обновление
+- Независимый запуск и остановка трансляции на каждой площадке.
+- Общие настройки кодирования или отдельное качество для YouTube и Twitch.
+- Общий чат со значками площадок, удалением сообщений и блокировкой пользователей при наличии прав.
+- Счётчики зрителей и отдельная панель для названия, категории и описания YouTube.
+- Браузерные источники с индивидуальными прокси.
+- Русский и английский интерфейс, шифрование сохранённых ключей и обновления из GitHub.
 
-1. Скачайте **setup.exe** из [релиза](https://github.com/AugustusNobilis/StreamBridge/releases), закройте OBS и выберите его корневую папку, содержащую `bin/64bit/obs64.exe`. Portable OBS поддерживается.
-2. Уже установлен StreamBridge? Используйте **updater.exe** из релиза 0.2.2 или **Настройки → Обновления**. Для текущих предварительных сборок включите их получение. Настройки и ключи сохранятся.
-3. После установки откройте OBS. В меню **Док-панели** включите StreamBridge, StreamBridge — Чат и StreamBridge — Данные трансляции.
-4. На вкладке YouTube/Twitch выберите сервер, сохраните ключ и настройки — либо привяжите аккаунт. Для чата нажмите **Подключить чат**.
+### 1. Скачайте и установите
 
-Установщик не содержит OBS. Для защищённых папок Windows может запросить права администратора. Пакеты пока не подписаны; контрольные суммы находятся в файле SHA256SUMS.txt релиза.
+Текущая сборка **0.2.2 — предварительная**, для **Windows x64 и OBS Studio 32 с Qt 6.8**. OBS нужно установить отдельно; поддерживается также portable-версия.
 
-### Привязка аккаунта
+1. Откройте [страницу версии 0.2.2](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.2) и разверните список **Assets** внизу.
+2. Если устанавливаете плагин впервые, скачайте **obs-streambridge-0.2.2-windows-x64-setup.exe**. Для обновления уже установленного плагина можно скачать **updater.exe**.
+3. Закройте OBS. Запустите скачанный файл.
+4. Укажите **корневую папку OBS**, внутри которой находится **bin → 64bit → obs64.exe**. Например, **C:\Program Files\obs-studio**. Не выбирайте саму папку bin или obs-plugins.
+5. Дождитесь завершения установки и откройте OBS.
 
-Для ручного ключа регистрация приложения не нужна. **Для чата, зрителей и редактора нужен свой OAuth-клиент**: Google типа Desktop или Twitch типа Public. Разверните «Настройка подключения · Client ID»: для Google импортируйте JSON клиента, скачанный из Google Cloud; для Twitch вставьте Client ID. Затем «Подключить аккаунт» откроет сайт площадки; для Twitch появится код подтверждения.
+Для установки в защищённую папку Windows может запросить права администратора. Сборка пока не имеет цифровой подписи; файл **SHA256SUMS.txt** в релизе содержит контрольные суммы.
 
-Пошаговые инструкции: **[YouTube, включая ошибку 403](docs/YOUTUBE-SETUP.ru.md)** · **[Twitch: что заполнять в форме регистрации](docs/TWITCH-SETUP.ru.md)**. Эти же инструкции доступны без интернета по кнопке на вкладке площадки. Старые подключения нужно переподключить для новых прав.
+### 2. Откройте панели и настройки
 
-**Обновление с перезапуском:** начиная с 0.2.2, во вкладке «Обновления» одна кнопка последовательно проверяет, скачивает и предлагает **Установить и перезапустить OBS**. Перед установкой остановите эфир, запись, буфер повтора и виртуальную камеру. OBS закроется штатно и запустится после успешной установки. Настройки обновлений находятся в раскрывающемся блоке. В старых версиях для перехода на 0.2.2 ещё нужно закрыть и открыть OBS вручную либо использовать updater.exe.
+1. В меню OBS **Док-панели** включите **StreamBridge**, **StreamBridge — Чат** и **StreamBridge — Данные трансляции**.
+2. В основной панели StreamBridge откройте **Настройки StreamBridge**.
+3. При необходимости выберите язык на вкладке **О плагине**, затем перезапустите OBS.
+4. Настройте площадки по следующему разделу. Можно использовать только одну из них.
 
-**0.2.2 — предварительная версия.** Чат и действия API проверены автоматическими сценариями; вход и модерация на реальных аккаунтах ещё требуют проверки с зарегистрированными Client ID. Чат YouTube расходует квоту API. Отдельный текст уведомления о начале стрима не поддерживается публичными API: в плагине это локальный черновик, а описание YouTube публикуется отдельно. [Возможности и ограничения](docs/PLATFORMS.md).
+### 3. Настройте YouTube и Twitch
+
+**Если нужно только передавать видео**, достаточно ключа трансляции:
+
+1. Для YouTube откройте [YouTube Studio](https://studio.youtube.com/) → **Создать → Начать трансляцию**, подготовьте эфир через видеокодер и скопируйте его ключ потока. Для Twitch откройте [кабинет автора](https://dashboard.twitch.tv/) → **Настройки → Трансляция** и скопируйте основной ключ.
+2. В настройках StreamBridge откройте вкладку нужной площадки.
+3. Выберите основной сервер YouTube или автоматический сервер Twitch.
+4. Вставьте значение в поле **Ключ трансляции** и нажмите **Сохранить ключ сейчас (с шифрованием)**. После успешного сохранения поле очищается — это нормально.
+5. Нажмите **Сохранить** внизу окна, чтобы сохранить остальные настройки. Для второй площадки повторите эти действия.
+
+**Если нужны чат, зрители и управление данными эфира**, подключите аккаунт. Для этого один раз создайте своё приложение площадки:
+
+| Площадка | Что подготовить | Инструкция |
+| --- | --- | --- |
+| YouTube | Собственный проект Google Cloud, включённый YouTube Data API v3 и JSON клиента типа Desktop app | [Все шаги настройки YouTube](docs/YOUTUBE-SETUP.ru.md) |
+| Twitch | Приложение типа Public и его Client ID | [Все шаги настройки Twitch](docs/TWITCH-SETUP.ru.md) |
+
+В настройках площадки раскройте **Настройка подключения · Client ID**. Для YouTube импортируйте JSON, для Twitch вставьте Client ID, затем нажмите подключение аккаунта и подтвердите доступ в браузере.
+
+Для Google скачайте JSON **сразу в окне создания клиента**: у уже созданного клиента Google не показывает полный секрет повторно. Если файл потерян, в [инструкции YouTube](docs/YOUTUBE-SETUP.ru.md#если-json-не-сохранили) описано восстановление настройки в том же проекте.
+
+После входа выберите существующую трансляцию YouTube кнопками **Загрузить существующие трансляции → Использовать выбранную трансляцию**. Для Twitch нажмите **Использовать ключ этого аккаунта**. Дождитесь подтверждения и сохраните настройки.
+
+### 4. Запустите трансляцию
+
+1. На вкладке кодирования выберите доступный энкодер и настройте качество. Для одинакового качества на обеих площадках используйте общее кодирование; для разного включите **Независимое кодирование**.
+2. Сохраните настройки и нажмите **Запустить** рядом с нужной площадкой в основной панели StreamBridge. **Запустить всё** включает оба настроенных выхода.
+3. Проверьте получение сигнала в кабинете площадки. На YouTube дополнительно запустите эфир в Studio, если автоматический старт выключен.
+4. Для завершения остановите нужный выход в StreamBridge и проверьте статус эфира на площадке.
+
+Кнопки StreamBridge управляют его собственными выходами независимо от основной кнопки трансляции OBS. Перед изменением настроек площадок остановите выходы StreamBridge.
+
+### 5. Пользуйтесь чатом и данными эфира
+
+- **Чат:** после подключения аккаунтов включите **Подключить чат** в панели **StreamBridge — Чат**. Значок рядом с сообщением показывает площадку. Для удаления или блокировки нажмите сообщение правой кнопкой и подтвердите действие. Нужны соответствующие права.
+- **Зрители:** серый счётчик означает 0, приглушённый красный — 1 и больше. «—» означает, что данные пока недоступны.
+- **Название и категория:** в панели **StreamBridge — Данные трансляции** выберите площадку. Для YouTube укажите двухбуквенный регион категорий, например RU; для Twitch введите название игры или категории. Нажмите **Найти категории**, выберите результат и затем **Опубликовать название и категорию**. На вкладке YouTube также можно изменить описание.
+- **Уведомление о стриме:** это локальный черновик. Скопируйте его и используйте в кабинете площадки; плагин не публикует его автоматически.
+
+Каждый пользователь YouTube использует собственный проект Google Cloud. Чат и другие действия через API расходуют квоту этого проекта. В режиме Google Testing для доступа к YouTube потребуется повторный вход через 7 дней. [Подробнее о настройке и ограничениях](docs/YOUTUBE-SETUP.ru.md).
+
+### 6. Обновляйте плагин
+
+1. Откройте **Настройки StreamBridge → Обновления**. Здесь показаны установленная и последняя найденная версии.
+2. Разверните **Настройки обновлений**. Для получения текущих предварительных сборок включите **Получать опубликованные предварительные версии**.
+3. Нажмите **Проверить сейчас**, затем **Загрузить обновление** — это одна кнопка, действие которой меняется по мере готовности.
+4. Остановите трансляции, запись, буфер повтора и виртуальную камеру.
+5. Нажмите **Установить и перезапустить OBS**. OBS закроется, обновление установится, после успешной установки OBS запустится снова. Если Windows запросит разрешение на установку, подтвердите его.
+
+Настройки и ключи сохраняются. Устанавливать Git не требуется. Автоматическая проверка и загрузка включаются отдельно в настройках; установку запускает пользователь.
+
+При переходе **со старой версии на 0.2.2** закрыть и открыть OBS ещё нужно вручную. Можно использовать **updater.exe** из релиза: он скачает установщик и обновит выбранную установку OBS. Сам updater.exe не закрывает и не перезапускает OBS автоматически. Новая кнопка перезапуска доступна в плагине начиная с 0.2.2.
+
+### Если возникла проблема
+
+| Что происходит | Что сделать |
+| --- | --- |
+| Плагин не появился в OBS | Проверьте выбранную при установке папку, совместимость версии OBS и меню «Док-панели». |
+| Установщик просит закрыть OBS, хотя окна нет | Проверьте процессы OBS и браузера StreamBridge в диспетчере задач. Убедитесь, что выбрана правильная папка и есть право записи в неё. |
+| YouTube показывает 403 или ошибку после входа | Следуйте [разделу об ошибках YouTube](docs/YOUTUBE-SETUP.ru.md#если-не-получается). |
+| Не удаётся зарегистрировать или подключить Twitch | Проверьте поля по [инструкции Twitch](docs/TWITCH-SETUP.ru.md). |
+| Видео идёт, но чата или зрителей нет | Ключ потока сам по себе не подключает аккаунт. Для YouTube также нужно выбрать нужную трансляцию. |
+| Новая версия не найдена | Включите получение предварительных версий и повторите проверку. |
+| Нужен прокси для виджета | Добавьте **Proxied Browser Source** и откройте **Настроить URL и прокси безопасно…**. Прокси этого источника не применяется к трансляциям, входу в аккаунты или чату. |
+
+Если проблема остаётся, создайте [обращение на GitHub](https://github.com/AugustusNobilis/StreamBridge/issues). Укажите версии OBS и StreamBridge, шаги и текст ошибки. Не прикладывайте ключи трансляций, токены или JSON Google.
+
+### Автор и лицензия
+
+Автор — **[AugustusNobilis](https://github.com/AugustusNobilis)**. Официальная версия бесплатна, исходный код открыт под **[GPL-2.0-or-later](LICENSE)**. Условия распространения и предоставления исходного кода определяются GPL; лицензии сторонних компонентов указаны отдельно.
+
+Для разработчиков: [сборка под Windows](docs/BUILD-WINDOWS.md), [безопасность](SECURITY.md), [сторонние компоненты](THIRD_PARTY_NOTICES.md).
+
+---
 
 ## English
 
-A free OBS Studio plugin for independent simultaneous **YouTube and Twitch** streaming, combined chat and browser sources with individual proxies. Windows x64; OBS 32 with Qt 6.8.
+A free OBS Studio plugin for streaming to **YouTube and Twitch** at the same time, reading both platforms in one chat and editing stream information inside OBS.
+
+**[Download StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.2)** · [Set up YouTube](docs/YOUTUBE-SETUP.en.md) · [Set up Twitch](docs/TWITCH-SETUP.en.md)
 
 ### Features
 
-- Shared encoding or separate quality profiles; independent start, stop and reconnect alongside OBS's main stream.
-- Viewer eye badges: grey for zero, muted red for positive counts, a dash when unavailable.
-- Combined chat with platform icons; right-click to delete messages or ban users when authorized.
-- Stream information dock for titles, categories and YouTube descriptions; copyable local go-live notification drafts.
-- Per-source SOCKS5 / HTTP CONNECT browser proxies, encrypted credentials, Russian/English UI and GitHub updates.
+- Independent start and stop controls for each platform.
+- Shared encoding settings or separate quality settings for YouTube and Twitch.
+- Combined chat with platform icons, message deletion and user bans when permitted.
+- Viewer counts and a separate dock for titles, categories and YouTube descriptions.
+- Browser sources with individual proxies.
+- Russian and English interfaces, encrypted saved credentials and updates from GitHub.
 
-### Setup
+### 1. Download and install
 
-1. Download **setup.exe** from [Releases](https://github.com/AugustusNobilis/StreamBridge/releases), close OBS and select its root folder containing `bin/64bit/obs64.exe`. Portable installations are supported.
-2. Existing users can run **updater.exe** from release 0.2.2, or use **Settings → Updates**. Enable preview releases for current development builds. Settings and credentials are preserved.
-3. Enable the StreamBridge, Chat and Stream information panels in OBS's **Docks** menu.
-4. Select a server and save your stream key, or connect an account. Click **Connect chat** in the chat dock.
+The current **0.2.2 preview** targets **Windows x64 and OBS Studio 32 with Qt 6.8**. Install OBS separately; portable installations are also supported.
 
-For account features, register your own **Google Desktop** / **Twitch Public** application. Under Account setup, import the Google Desktop JSON or enter the Twitch Client ID. Follow the **[YouTube guide, including 403 errors](docs/YOUTUBE-SETUP.en.md)** or **[Twitch registration guide](docs/TWITCH-SETUP.en.md)**. The same guides are available offline from each platform tab. Reconnect older accounts to grant current permissions.
+1. Open the [0.2.2 release page](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.2) and expand **Assets** at the bottom.
+2. For a first installation, download **obs-streambridge-0.2.2-windows-x64-setup.exe**. To update an existing plugin, you can use **updater.exe**.
+3. Close OBS and run the downloaded file.
+4. Select the **OBS root folder** containing **bin → 64bit → obs64.exe**, for example **C:\Program Files\obs-studio**. Do not select bin or obs-plugins itself.
+5. Wait for installation to finish, then open OBS.
 
-**Updating with restart:** from 0.2.2, one primary button checks, downloads, then offers **Install and restart OBS**. Stop streaming, recording, replay buffer and virtual camera before installing. OBS closes normally and restarts after successful installation. Update preferences are collapsible. Older versions still require closing and reopening OBS manually for the upgrade to 0.2.2, or using updater.exe.
+Windows may request administrator permission for a protected installation folder. The build is currently unsigned; **SHA256SUMS.txt** in the release lists file checksums.
 
-**0.2.2 is a development preview.** Real-account consent and moderation acceptance are pending registered Client IDs; automated tests use synthetic provider responses. YouTube chat consumes API quota. Separate go-live notification text is not exposed by these public APIs, so that field is a copyable local draft. [Platform behavior and limits](docs/PLATFORMS.md).
+### 2. Open the docks and settings
 
-## License / Лицензия
+1. In OBS's **Docks** menu, enable **StreamBridge**, **StreamBridge — Chat** and **StreamBridge — Stream information**.
+2. Open **StreamBridge Settings** from the main StreamBridge dock.
+3. If needed, choose your language on the **About** tab, then restart OBS.
+4. Configure your platforms below. Using just one platform is supported.
 
-Автор / Author: **[AugustusNobilis](https://github.com/AugustusNobilis)** and contributors. The official version is free / официальная версия бесплатна.
+### 3. Configure YouTube and Twitch
 
-**GPL-2.0-or-later**: preserve the license and copyright notices and provide corresponding source code when distributing copies or modifications, as required by the GPL. При распространении сохраняйте лицензию, уведомления об авторстве и предоставляйте соответствующий исходный код на условиях GPL. Third-party components retain their own licenses.
+**To send video only**, a stream key is enough:
 
-[Build / Сборка](docs/BUILD-WINDOWS.md) · [Proxy browser](docs/PROXY-BROWSER.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Third-party licenses](THIRD_PARTY_NOTICES.md)
+1. For YouTube, open [YouTube Studio](https://studio.youtube.com/) → **Create → Go live**, prepare an encoder broadcast and copy its stream key. For Twitch, open [Creator Dashboard](https://dashboard.twitch.tv/) → **Settings → Stream** and copy the primary stream key.
+2. Open the platform's tab in StreamBridge settings.
+3. Select the primary YouTube server or the automatic Twitch server.
+4. Paste the value into **Stream key** and click **Save key now (encrypted)**. The field clears after a successful save; this is expected.
+5. Click **Save** at the bottom to save the other settings. Repeat for the second platform if needed.
+
+**For chat, viewers and stream information controls**, connect an account. Register your own platform application once:
+
+| Platform | What you need | Instructions |
+| --- | --- | --- |
+| YouTube | Your own Google Cloud project, YouTube Data API v3 enabled and a Desktop app client JSON file | [Complete YouTube setup](docs/YOUTUBE-SETUP.en.md) |
+| Twitch | A Public application and its Client ID | [Complete Twitch setup](docs/TWITCH-SETUP.en.md) |
+
+Expand **Account setup · Client ID** on the platform tab. Import the JSON for YouTube or paste the Client ID for Twitch, then click the account connection button and authorize in your browser.
+
+Download the Google JSON **in the client creation dialog before closing it**. Google does not reveal the existing client's full secret again. If you lost the file, follow [the recovery steps](docs/YOUTUBE-SETUP.en.md#if-you-did-not-save-the-json) within the same project.
+
+After sign-in, select an existing YouTube broadcast using **Load existing broadcasts → Use selected broadcast**. For Twitch, click **Use this account's stream key**. Wait for confirmation and save settings.
+
+### 4. Start streaming
+
+1. On the encoding tab, select an available encoder and configure quality. Use shared encoding for matching quality on both platforms, or enable **Independent encoding** for separate settings.
+2. Save settings and click **Start** beside the platform in the main StreamBridge dock. **Start All** starts both configured outputs.
+3. Check the incoming signal in the platform dashboard. On YouTube, also start the broadcast in Studio if auto-start is disabled.
+4. To finish, stop the output in StreamBridge and check the broadcast status on the platform.
+
+StreamBridge controls its own outputs independently of OBS's main streaming button. Stop StreamBridge outputs before changing platform settings.
+
+### 5. Use chat and stream information
+
+- **Chat:** after connecting your accounts, enable **Connect chat** in **StreamBridge — Chat**. Each message has a platform icon. Right-click a message to delete it or ban its author, then confirm. Appropriate permissions are required.
+- **Viewers:** grey means zero viewers; muted red means one or more. A dash means data is currently unavailable.
+- **Title and category:** select the platform in **StreamBridge — Stream information**. For YouTube, enter a two-letter category region such as US; for Twitch, enter a game or category name. Click **Find categories**, select a result, then **Publish title and category**. You can also edit the description on the YouTube tab.
+- **Go-live notification:** this is a local draft. Copy it for use in the platform dashboard; the plugin does not publish it automatically.
+
+Each YouTube user uses their own Google Cloud project. Chat and other API operations consume that project's quota. Google Testing mode requires another sign-in after seven days for YouTube access. [Setup details and limitations](docs/YOUTUBE-SETUP.en.md).
+
+### 6. Update the plugin
+
+1. Open **StreamBridge Settings → Updates** to see the installed version and the latest version found.
+2. Expand **Update preferences** and enable **Include published preview releases** to receive the current previews.
+3. Click **Check now**, then **Download update**. The same button changes its action as the update becomes ready.
+4. Stop streams, recording, replay buffer and virtual camera.
+5. Click **Install and restart OBS**. OBS closes, the update installs, and OBS starts again after successful installation. Approve the Windows installation prompt if one appears.
+
+Settings and credentials are preserved. Git is not required. Automatic checks and downloads are optional; the user starts installation.
+
+When upgrading **from an older version to 0.2.2**, close and reopen OBS manually. Alternatively, use this release's **updater.exe** to download the installer and update the selected OBS installation. The standalone updater does not automatically close or restart OBS. The new restart button is available inside the plugin from 0.2.2 onward.
+
+### Troubleshooting
+
+| Problem | What to check |
+| --- | --- |
+| The plugin is missing in OBS | Check the installation folder, OBS version compatibility and the Docks menu. |
+| The installer asks to close OBS but no window is open | Check Task Manager for OBS and StreamBridge browser processes. Verify the selected folder and write permissions. |
+| YouTube shows a 403 or fails after sign-in | Follow [YouTube troubleshooting](docs/YOUTUBE-SETUP.en.md#troubleshooting). |
+| Twitch registration or sign-in fails | Check the fields in the [Twitch guide](docs/TWITCH-SETUP.en.md). |
+| Video works but chat or viewers are missing | A stream key alone does not connect an account. YouTube also needs the correct broadcast selected. |
+| No update is found | Enable preview releases and check again. |
+| A widget needs a proxy | Add **Proxied Browser Source** and open **Configure URL and proxy securely…**. Its proxy does not apply to streams, account sign-in or chat. |
+
+If the problem remains, [open an issue on GitHub](https://github.com/AugustusNobilis/StreamBridge/issues). Include OBS and StreamBridge versions, reproduction steps and the error text. Do not attach stream keys, tokens or Google credential JSON.
+
+### Author and license
+
+Created by **[AugustusNobilis](https://github.com/AugustusNobilis)**. The official version is free and the source is available under **[GPL-2.0-or-later](LICENSE)**. Distribution and corresponding-source obligations are governed by the GPL; third-party licenses are listed separately.
+
+For developers: [Windows build instructions](docs/BUILD-WINDOWS.md), [security](SECURITY.md), [third-party components](THIRD_PARTY_NOTICES.md).

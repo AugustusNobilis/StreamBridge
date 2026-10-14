@@ -1,65 +1,126 @@
-# YouTube: StreamBridge setup
+# Set up YouTube in StreamBridge
 
-## Fix the pictured 403 access_denied
+These instructions require **StreamBridge 0.2.2 or newer**. A stream key is enough to send video. Connect an account through your own Google Cloud project for combined chat, viewer counts and stream information editing.
 
-An **Access blocked** page saying the app is being tested and allows only **developer-approved testers** means the selected Google account is not permitted in Testing mode.
+Each user creates their own project. Personal setup does not require publishing the application to everyone or sending account credentials to the plugin author.
 
-Open [Google Cloud](https://console.cloud.google.com/), select the project owning the Client ID entered in StreamBridge, then **Google Auth Platform → Audience → Test users → Add users**. Add the Google account used for sign-in and save. Cancel the pending login in OBS and connect again with that account.
+## 1. Prepare your Google Cloud project
 
-If someone else owns the Client ID, that project's owner must add you. Adding a user in a different project will not help. The 403 page cannot simply be dismissed. [Google's Testing rules](https://support.google.com/cloud/answer/15549945).
+1. Open [Google Cloud Console](https://console.cloud.google.com/) with your Google account.
+2. Click the current project name at the top. Select an existing StreamBridge project or create one using **New project**.
+3. Check that the correct project is selected in the top bar. Use this same project for all remaining steps.
+4. Open **APIs & Services → Library**.
+5. Find **YouTube Data API v3**, open it and click **Enable**. If the button says **Manage**, the API is already enabled.
 
-## 1. Prepare Google Cloud
+## 2. Allow your account to sign in
 
-Create or select a project. In **APIs & Services → Library**, enable **YouTube Data API v3**. Keep using this project for every following step.
+1. Open **Google Auth Platform**. If it is not configured yet, click **Get started**.
+2. Enter an application name, such as **StreamBridge**, a support email and a contact email.
+3. Choose **External** for a personal Google account and finish the initial setup.
+4. Open **Audience**. Leave the application in **Testing** during personal setup.
+5. Under **Test users**, click **Add users**, add the email address you will use for YouTube sign-in and save.
+6. Open **Data Access → Add or remove scopes**, add **https://www.googleapis.com/auth/youtube.force-ssl** and save.
 
-Open **Google Auth Platform → Get started** if needed. Enter your application name, support email and contact email. Choose **External** for a personal Google account. Under **Audience**, use **Testing** for personal evaluation and add your sign-in account to **Test users**.
+This permission supports the plugin's YouTube features. Gmail and Google Drive permissions are unnecessary. [Google's consent screen instructions](https://developers.google.com/workspace/guides/configure-oauth-consent).
 
-Under **Data Access → Add or remove scopes**, add **https://www.googleapis.com/auth/youtube.force-ssl** and save. StreamBridge uses this permission for YouTube data, chat and broadcast management; it does not need Gmail or Drive permissions. [Consent screen setup](https://developers.google.com/workspace/guides/configure-oauth-consent).
+**Important:** in Testing mode, YouTube authorization and refresh tokens expire after **seven days**. Connect the account in StreamBridge again when this happens. Before changing the publication status later, read [Google's application audience rules](https://support.google.com/cloud/answer/15549945?hl=en).
 
-## 2. Create the desktop client
+## 3. Create the client and download JSON immediately
 
-1. Open **Google Auth Platform → Clients → Create client**.
-2. Select **Desktop app**, name it and create it.
-3. Copy the **Client ID** ending in **.apps.googleusercontent.com**.
-4. Paste it into **StreamBridge settings → YouTube → Account setup · Client ID**.
+1. Open **Google Auth Platform → Clients**.
+2. Click **Create client**.
+3. Set **Application type** to **Desktop app**.
+4. Enter a name, such as **StreamBridge Desktop**, and click **Create**.
+5. **Before closing the client creation dialog, click Download JSON and save the file.**
+6. Remember the download location: you will select this file in OBS.
 
-Open your existing Desktop client in **Google Auth Platform → Clients**, choose **Download JSON**, then open **StreamBridge → YouTube → Connection setup → Import JSON from Google Cloud…** and select that file locally. The Client ID is filled automatically. Click **Connect YouTube account**.
+Do not choose **Web application**. A Desktop client needs no manually entered redirect address; StreamBridge opens a temporary local callback automatically.
 
-Do not choose Web application. Desktop clients use an automatically opened local callback; no manually entered Redirect URI is needed. Import reads client_id and client_secret from installed; server URLs from the file are ignored. After successful login, these credentials are kept with tokens in the Windows DPAPI vault. Do not send the downloaded JSON to anyone or upload it to GitHub. Manual Client ID entry remains available, but clients requiring client_secret need JSON import. [Google desktop authorization](https://developers.google.com/identity/protocols/oauth2/native-app).
+### If you did not save the JSON
 
-### “Return to OBS StreamBridge” followed by an error in OBS
+Google hides the existing client's full **Client secret**. The notice **Viewing and downloading client secrets is no longer available** means the previous secret cannot be downloaded again. The masked value is not usable for setup. [Google's client secret rules](https://support.google.com/cloud/answer/15549257?hl=en).
 
-The local page acknowledges the browser response; it does not confirm token exchange. Version 0.2.1 and older did not send a Desktop client's client_secret, which could cause failure after consent. Update to 0.2.2 or newer, import your existing Desktop client JSON and connect again. For invalid_client, check the client still exists and download fresh JSON. For invalid_grant, restart login and keep OBS settings open. Adding a test user again is only relevant to a Google tester-access denial.
+To finish StreamBridge setup:
 
-## 3. Connect
+1. Stay in **the same Google Cloud project**.
+2. Open **Clients → Create client** and create another **Desktop app**, for example **StreamBridge Desktop 2**.
+3. Download its JSON immediately in the creation dialog, before closing it.
+4. Use this new file in the next section.
 
-Click **Connect YouTube account**, select the permitted Google account and intended channel, review the application and permissions and authorize. Only proceed past an unverified-app warning if you recognize your project; a tester-related 403 requires the fix above.
+You do not need a new project, to enable the API again or to re-add the test user. You can leave the old client in place until the connection works.
 
-Keep OBS settings open until **Account connected** appears. Closing settings cancels an unfinished login. In Testing mode, authorization and refresh tokens for these scopes expire after **7 days**, requiring reconnection. Distributing one client to the public needs separate preparation and compliance with Google's requirements.
+## 4. Import the file and connect your account
 
-## 4. Prepare and select the broadcast
+1. In OBS, open **StreamBridge Settings → YouTube**.
+2. Expand **Account setup · Client ID**.
+3. Click **Import JSON from Google Cloud…** and select the downloaded file.
+4. Wait for **Desktop client loaded**. The Client ID fills automatically; do not edit it after importing.
+5. Click **Connect YouTube account** to open your browser.
+6. Choose the account listed in **Test users**, and the intended channel if Google offers a choice.
+7. Check your application name and grant the requested YouTube permissions. If Google displays separate permission checkboxes, select the permissions requested by the plugin.
+8. When you see **Return to OBS StreamBridge**, return to OBS and wait for **Account connected**.
 
-1. Open [YouTube Studio](https://studio.youtube.com/), choose your channel, then **Create → Go live**.
-2. Prepare a **Streaming software / encoder** broadcast, not a webcam broadcast. Set title, visibility and stream settings. Follow YouTube's activation requirements if live streaming is unavailable.
-3. For a scheduled broadcast, open its control room and configure its stream key; the broadcast must have a bound stream.
-4. In StreamBridge, click **Load broadcasts**, choose the broadcast and **Use selected broadcast**.
-5. Wait for the saved-ingest confirmation and save settings.
-6. Click YouTube **Start** in StreamBridge. Check the incoming signal in Studio and start the broadcast there if auto-start is disabled.
+Keep OBS settings open until sign-in finishes. Closing settings cancels an unfinished connection. The local **Return to OBS StreamBridge** page alone does not confirm successful sign-in; check the final status in the plugin.
 
-StreamBridge uses an existing broadcast; it does not create, bind or publish one through the API. Chat, viewer counts and metadata refer to the selected broadcast. Enable **StreamBridge — Chat** from OBS's **Docks** menu and click **Connect chat**.
+Only proceed past an unverified-application warning if you recognize your project and account. A tester-related **403 access_denied** requires adding the account to **Test users**, not dismissing a warning.
+
+The JSON is selected locally. Do not send it in messages, attach it to GitHub issues or share it with other users. A Client ID alone may not be enough to sign in; import the complete file.
+
+## 5. Prepare a broadcast in YouTube Studio
+
+1. Open [YouTube Studio](https://studio.youtube.com/) and check the selected channel.
+2. Click **Create → Go live**. If live streaming is unavailable, follow YouTube's activation requirements.
+3. Prepare a broadcast using **Streaming software**. Webcam mode is not suitable for video from OBS.
+4. Set its title, visibility, audience and other broadcast options.
+5. Open the broadcast's stream settings and select a stream key. For a scheduled broadcast, open its control room first.
+6. If you need chat, check that it is enabled for this broadcast.
+
+StreamBridge uses an existing broadcast. It does not create the broadcast in Studio or bind a stream to it automatically.
+
+## 6. Select the broadcast and start video
+
+1. On StreamBridge's **YouTube** settings tab, click **Load existing broadcasts**.
+2. Select the intended broadcast and click **Use selected broadcast**.
+3. Wait for confirmation that the server and key were saved. You do not need to copy the key manually in this case.
+4. Check your encoding settings and click **Save**.
+5. In the main StreamBridge dock, click **Start** beside YouTube.
+6. Check the incoming signal in Studio. If auto-start is disabled, also start the broadcast there.
+
+To change broadcasts, stop the YouTube output in StreamBridge, select the new broadcast in settings and start the output again.
+
+## 7. Enable chat and stream controls
+
+1. In OBS's **Docks** menu, enable **StreamBridge — Chat** and **StreamBridge — Stream information**.
+2. Enable **Connect chat** in the chat dock. YouTube messages display a platform icon.
+3. Right-click a message to delete it or ban its author. These actions require appropriate permissions.
+4. Select **YouTube** in the information dock and edit the title or description.
+5. For categories, enter a two-letter region such as **US**, click **Find categories** and select a result.
+6. Click **Publish title and category**. This action also saves changes to the YouTube description.
+
+Chat, viewer counts and information refer to the selected broadcast. API calls consume **your Google Cloud project's quota**. The go-live notification draft stays local and is not published automatically.
 
 ## Troubleshooting
 
-- Tester-related 403: verify the project and exact account in **Audience → Test users**.
-- redirect_uri_mismatch: use a **Desktop app** client instead of Web.
-- invalid_client or missing client_secret: import fresh JSON for your Desktop client and reconnect.
-- Empty broadcast list: check the selected channel and an unfinished encoder broadcast, then load again.
-- Unbound broadcast: configure its stream/key in Studio and select it again.
-- API/quota error: check API enablement, channel permissions and project quota; retry after resolving the cause.
-- Empty chat: select the intended broadcast, enable chat in Studio and click **Connect chat**.
+| Message or problem | What to do |
+| --- | --- |
+| **403 access_denied**, application limited to testers | Open the project owning the imported client. Add the exact sign-in account under **Audience → Test users**. Cancel the attempt in OBS and connect again. |
+| **Return to OBS StreamBridge**, followed by an error in OBS | Use StreamBridge 0.2.2 or newer and import the complete Desktop client JSON. If it was lost, create another client in the same project as described above. |
+| **invalid_client** or a required **client_secret** | Check that the client still exists and import its saved JSON. If no saved file is available, create a new Desktop client and download its JSON immediately. |
+| **redirect_uri_mismatch** | Use a **Desktop app** client. Create the correct type and import its file. |
+| **invalid_grant** | Cancel and start sign-in again. Keep OBS settings open during authorization. |
+| Sign-in is required again after about a week | This is expected for YouTube access in Google Testing mode. Connect the account again. |
+| No broadcasts in the list | Check the channel and create an unfinished encoder broadcast, then load the list again. |
+| The broadcast has no bound stream | Open it in Studio, configure its stream and key, then select it again in StreamBridge. |
+| API or quota error | Check that **YouTube Data API v3** is enabled in the same project and that quota remains. Repeated retries do not restore quota. |
+| Empty chat or a dash for viewers | Check the selected broadcast, its live status, chat availability in Studio and **Connect chat**. |
 
-## Stream-key-only mode
+## Video only, without Google Cloud
 
-Copy your stream key from Studio into StreamBridge's **Stream key** field, select the primary YouTube server, save the key and settings, start output and check Studio. Google Cloud setup is unnecessary for video transport alone; account API features still require OAuth.
+1. Prepare an encoder broadcast in YouTube Studio and copy its stream key.
+2. Open **StreamBridge Settings → YouTube** and select the primary server.
+3. Paste the key into **Stream key** and click **Save key now (encrypted)**. The field clears after saving.
+4. Click **Save** at the bottom of settings.
+5. Click **Start** beside YouTube in StreamBridge and check the signal in Studio.
+6. If auto-start is disabled, start the broadcast in Studio manually.
 
-Never publish stream keys, tokens or downloaded credential JSON. Automated tests do not replace acceptance with your exact registered Client ID and real account.
+A stream key sends video to the platform but does not connect chat, viewer counts or the information editor through the API.

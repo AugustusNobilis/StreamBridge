@@ -1,6 +1,6 @@
 # Set up YouTube in StreamBridge
 
-These instructions require **StreamBridge 0.2.2 or newer**. A stream key is enough to send video. Connect an account through your own Google Cloud project for combined chat, viewer counts and stream information editing.
+These instructions require **StreamBridge 0.2.3 or newer**. A stream key is enough to send video. Connect an account through your own Google Cloud project for combined chat, viewer counts and stream information editing.
 
 Each user creates their own project. Personal setup does not require publishing the application to everyone or sending account credentials to the plugin author.
 
@@ -84,7 +84,7 @@ StreamBridge uses an existing broadcast. It does not create the broadcast in Stu
 3. Wait for confirmation that the server and key were saved. You do not need to copy the key manually in this case.
 4. Check your encoding settings and click **Save**.
 5. In the main StreamBridge dock, click **Start** beside YouTube.
-6. Check the incoming signal in Studio. If auto-start is disabled, also start the broadcast there.
+6. In **StreamBridge — Stream information → YouTube**, click **Go live on YouTube**. The plugin checks the incoming signal and waits for confirmation. If the signal is not ready, retry in a few seconds.
 
 To change broadcasts, stop the YouTube output in StreamBridge, select the new broadcast in settings and start the output again.
 
@@ -93,11 +93,29 @@ To change broadcasts, stop the YouTube output in StreamBridge, select the new br
 1. In OBS's **Docks** menu, enable **StreamBridge — Chat** and **StreamBridge — Stream information**.
 2. Enable **Connect chat** in the chat dock. YouTube messages display a platform icon.
 3. Right-click a message to delete it or ban its author. These actions require appropriate permissions.
-4. Select **YouTube** in the information dock and edit the title or description.
+4. Select **YouTube** in the information dock and edit the title.
 5. For categories, enter a two-letter region such as **US**, click **Find categories** and select a result.
-6. Click **Publish title and category**. This action also saves changes to the YouTube description.
+6. Click **Publish title and category**. The existing YouTube description is preserved; the plugin no longer offers a description editor.
+7. For **Gaming**, click **Choose game in YouTube Studio**. Select a game title in the opened broadcast's settings and save. YouTube's public API exposes the category but no separate game-title field.
 
-Chat, viewer counts and information refer to the selected broadcast. API calls consume **your Google Cloud project's quota**. The go-live notification draft stays local and is not published automatically.
+Chat, viewer counts and information refer to the selected broadcast. API calls consume **your Google Cloud project's quota**. Description and go-live notification fields have been removed from the plugin.
+
+## 8. End the broadcast from OBS
+
+1. In **StreamBridge — Stream information → YouTube**, click **End YouTube broadcast**.
+2. Check the title in the confirmation and confirm. This broadcast cannot be resumed afterward.
+3. Wait for successful completion. After YouTube confirms, the plugin stops its YouTube output; Twitch keeps running.
+
+The main dock's **Stop** button stops sending video. Use **End YouTube broadcast** to explicitly end it on YouTube. An API error does not automatically stop the output: read the message and retry.
+
+## Read the viewer count
+
+- **0** — YouTube explicitly reported zero.
+- **A positive number** — the reported concurrent viewer count.
+- `0*` — the broadcast is live, but the count was omitted. This can mean zero viewers or hidden statistics; hover for details.
+- **—** — data is unavailable, or the broadcast is upcoming or ended. Check the account connection and selected broadcast.
+
+Counts refresh about once a minute. Chat requests no longer cause viewer refreshes to be skipped; updates are queued. [YouTube viewer-count behavior](https://developers.google.com/youtube/v3/docs/videos#liveStreamingDetails.concurrentViewers).
 
 ## Troubleshooting
 

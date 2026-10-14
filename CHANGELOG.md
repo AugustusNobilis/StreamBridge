@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 — YouTube broadcast controls and viewer counts, 2026-10-14
+
+- Queue viewer refreshes behind chat traffic, support numeric and string counts, and distinguish measured zero from YouTube's omitted zero-or-hidden field with a 0* badge and explanation.
+- Add explicit Go live and End broadcast controls, active-ingest checks, monitor/testing transitions, bounded status polling and confirmation before completion. Stop only YouTube output after confirmed completion.
+- Remove description and notification editors while preserving existing YouTube descriptions during title/category updates.
+- Localize YouTube category names and link Gaming to the selected broadcast in Studio; the public API exposes no writable game-title field.
+- Update Russian and English setup guides and target the standalone updater at 0.2.3.
+
 ## 0.2.2 — restart updates and Google Desktop credentials, 2026-10-14
 
 - Replace multiple update buttons with one state-dependent action and collapsible preferences.

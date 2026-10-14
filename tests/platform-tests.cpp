@@ -2,8 +2,10 @@
 #include "platform/hub.hpp"
 #include "platform/irc.hpp"
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QTemporaryDir>
+#include <QThread>
 #include <iostream>
 #include <stdexcept>
 using namespace sb;
@@ -39,7 +41,7 @@ class FakeHttp : public HttpClient {
     void answer(int status, const QJsonObject &body = {}) { take().callback({status, body, false}); }
 };
 static QJsonObject video(const QString &viewers = "12") {
-    QJsonObject live{{"activeLiveChatId", "chat-1"}};
+    QJsonObject live{{"activeLiveChatId", "chat-1"}, {"actualStartTime", "2026-10-14T12:00:00Z"}};
     if (!viewers.isEmpty())
         live["concurrentViewers"] = viewers;
     return {{"items", QJsonArray{QJsonObject{{"id", "broadcast-1"},
@@ -49,6 +51,30 @@ static QJsonObject video(const QString &viewers = "12") {
                                                                      {"tags", QJsonArray{"keep-me"}},
                                                                      {"defaultLanguage", "ru"}}},
                                              {"liveStreamingDetails", live}}}}};
+}
+static QJsonObject broadcast(const QString &state, bool monitor = false) {
+    return {{"items", QJsonArray{QJsonObject{
+                          {"id", "broadcast-1"},
+                          {"status", QJsonObject{{"lifeCycleStatus", state}}},
+                          {"contentDetails",
+                           QJsonObject{{"boundStreamId", "stream-1"},
+                                       {"monitorStream", QJsonObject{{"enableMonitorStream", monitor}}}}}}}}};
+}
+static QJsonObject stream(const QString &state) {
+    return {{"items",
+             QJsonArray{QJsonObject{{"id", "stream-1"}, {"status", QJsonObject{{"streamStatus", state}}}}}}};
+}
+static QJsonObject transition(const QString &state) {
+    return {{"id", "broadcast-1"}, {"status", QJsonObject{{"lifeCycleStatus", state}}}};
+}
+static void awaitRequest(FakeHttp &http) {
+    QElapsedTimer timeout;
+    timeout.start();
+    while (http.calls.empty() && timeout.elapsed() < 3500) {
+        QCoreApplication::processEvents();
+        QThread::msleep(10);
+    }
+    require(!http.calls.empty(), "bounded transition poll arrives");
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -91,8 +117,47 @@ int main(int argc, char **argv) {
                 "known viewer count and unknown disconnected count differ");
         hub.refresh();
         yh.answer(200, video(""));
-        require(hub.info(0).viewers == -1, "missing YouTube count is unavailable, never false zero");
-        hub.saveInfo(0, "New title", "New description", "22");
+        require(hub.info(0).viewers == 0 && hub.info(0).viewersUnreported,
+                "omitted live count has explicit unreported marker, not a measured zero");
+        hub.refresh();
+        yh.answer(200, video("0"));
+        require(hub.info(0).viewers == 0 && !hub.info(0).viewersUnreported, "explicit zero is known");
+        for (const QJsonValue value : {QJsonValue(8), QJsonValue(0), QJsonValue(-1), QJsonValue(2.5),
+                                       QJsonValue(true), QJsonValue("invalid")}) {
+            auto sample = video();
+            auto item = sample["items"].toArray()[0].toObject();
+            auto live = item["liveStreamingDetails"].toObject();
+            live["concurrentViewers"] = value;
+            item["liveStreamingDetails"] = live;
+            sample["items"] = QJsonArray{item};
+            hub.refresh();
+            yh.answer(200, sample);
+            const auto expected = value == QJsonValue(8) ? 8 : value == QJsonValue(0) ? 0 : -1;
+            require(hub.info(0).viewers == expected && !hub.info(0).viewersUnreported,
+                    "numeric counts supported; malformed counts remain unavailable");
+        }
+        auto upcoming = video("");
+        auto item = upcoming["items"].toArray()[0].toObject();
+        item["liveStreamingDetails"] = QJsonObject{{"scheduledStartTime", "2026-10-15T12:00:00Z"}};
+        upcoming["items"] = QJsonArray{item};
+        hub.refresh();
+        yh.answer(200, upcoming);
+        require(hub.info(0).viewers == -1 && !hub.info(0).viewersUnreported,
+                "upcoming broadcast is not reported as a live zero");
+        auto ended = video("12");
+        item = ended["items"].toArray()[0].toObject();
+        auto details = item["liveStreamingDetails"].toObject();
+        details["actualEndTime"] = "2026-10-14T13:00:00Z";
+        item["liveStreamingDetails"] = details;
+        ended["items"] = QJsonArray{item};
+        hub.refresh();
+        yh.answer(200, ended);
+        require(hub.info(0).viewers == -1 && hub.info(0).broadcastState == "complete",
+                "completed broadcast does not retain a stale audience count");
+        hub.refresh();
+        yh.answer(403);
+        require(hub.info(0).viewers == -1, "API failure is never displayed as zero");
+        hub.saveInfo(0, "New title", "22");
         auto fresh = yh.take();
         require(fresh.method == "GET", "YouTube snippet fetched immediately before update");
         fresh.callback({200, video(), false});
@@ -100,10 +165,80 @@ int main(int argc, char **argv) {
         const auto snippet = write.body["snippet"].toObject();
         require(write.method == "PUT" && snippet["tags"].toArray() == QJsonArray{"keep-me"} &&
                     snippet["defaultLanguage"] == "ru" && snippet["title"] == "New title" &&
-                    snippet["description"] == "New description",
-                "metadata update preserves unrelated tags and language");
+                    snippet["description"] == "Original description",
+                "title/category update preserves the existing description, tags and language");
         write.callback({200, {}, false});
         yh.answer(200, video());
+        hub.searchCategories(0, {}, "RU", "ru_RU");
+        auto categories = yh.take();
+        require(QUrlQuery(categories.url).queryItemValue("hl") == "ru_RU", "category names use UI language");
+        categories.callback({200, {{"items", QJsonArray{}}}, false});
+        require(hub.youtubeStudioUrl().path() == "/video/broadcast-1/livestreaming",
+                "Studio shortcut targets the selected broadcast");
+        unsigned endedSignals = 0;
+        QObject::connect(&hub, &PlatformHub::youtubeBroadcastEnded, [&] { ++endedSignals; });
+        hub.transitionYouTube(true);
+        hub.transitionYouTube(true);
+        require(yh.calls.size() == 1 && hub.youtubeControlPending(), "duplicate lifecycle action suppressed");
+        yh.answer(200, broadcast("ready"));
+        yh.answer(200, stream("inactive"));
+        require(yh.calls.empty() && !hub.youtubeControlPending() &&
+                    hub.youtubeControlStatus() == "YouTubeNoSignal",
+                "no video means no go-live mutation");
+        hub.transitionYouTube(true);
+        yh.answer(200, broadcast("ready"));
+        yh.answer(200, stream("active"));
+        auto goLive = yh.take();
+        require(goLive.method == "POST" && goLive.body.isEmpty() &&
+                    goLive.url.path().endsWith("/liveBroadcasts/transition") &&
+                    QUrlQuery(goLive.url).queryItemValue("id") == "broadcast-1" &&
+                    QUrlQuery(goLive.url).queryItemValue("broadcastStatus") == "live",
+                "go-live uses selected broadcast, empty POST body and active ingest");
+        goLive.callback({200, transition("live"), false});
+        yh.answer(200, video());
+        require(!hub.youtubeControlPending() && hub.youtubeControlStatus() == "YouTubeIsLive",
+                "go-live is confirmed by provider state");
+        hub.transitionYouTube(false);
+        yh.answer(200, broadcast("live"));
+        auto endRequest = yh.take();
+        require(QUrlQuery(endRequest.url).queryItemValue("broadcastStatus") == "complete",
+                "end action requests broadcast completion");
+        endRequest.callback({403, {}, false});
+        require(endedSignals == 0 && !hub.youtubeControlPending(), "failed end never stops video output");
+        hub.transitionYouTube(false);
+        yh.answer(200, broadcast("live"));
+        yh.answer(200,
+                  {{"id", "different-broadcast"}, {"status", QJsonObject{{"lifeCycleStatus", "complete"}}}});
+        require(endedSignals == 0 && hub.youtubeControlStatus() == "YouTubeTransitionUnknown",
+                "unverified completion cannot stop the selected output");
+        hub.transitionYouTube(false);
+        yh.answer(200, broadcast("live"));
+        yh.answer(200, transition("complete"));
+        require(endedSignals == 1, "confirmed end signals only YouTube output to stop");
+        yh.answer(200, ended);
+        hub.transitionYouTube(true);
+        yh.answer(200, broadcast("complete"));
+        require(yh.calls.empty() && hub.youtubeControlStatus() == "YouTubeInvalidTransition",
+                "completed broadcast cannot be restarted");
+        hub.transitionYouTube(true);
+        yh.answer(200, broadcast("ready", true));
+        yh.answer(200, stream("active"));
+        auto testing = yh.take();
+        require(QUrlQuery(testing.url).queryItemValue("broadcastStatus") == "testing",
+                "monitor-enabled broadcast enters testing before live");
+        testing.callback({200, transition("testStarting"), false});
+        require(hub.youtubeControlPending(), "testing transition is not reported as complete early");
+        awaitRequest(yh);
+        yh.answer(200, broadcast("testing", true));
+        auto afterTest = yh.take();
+        require(QUrlQuery(afterTest.url).queryItemValue("broadcastStatus") == "live",
+                "confirmed testing automatically continues user-requested go-live");
+        afterTest.callback({200, transition("liveStarting"), false});
+        awaitRequest(yh);
+        yh.answer(200, broadcast("live", true));
+        yh.answer(200, video());
+        require(!hub.youtubeControlPending() && hub.youtubeControlStatus() == "YouTubeIsLive",
+                "asynchronous live transition waits for confirmation");
         ChatMessage message{0, "message-1", "viewer-1", "Viewer", "hello", "chat-1", {}, true};
         require(hub.canModerate(message, true), "owner with scope can moderate selected chat");
         auto foreign = message;
@@ -151,6 +286,8 @@ int main(int argc, char **argv) {
         yh.answer(200, video());
         QCoreApplication::processEvents();
         auto lateChat = yh.take();
+        hub.refresh();
+        hub.refresh();
         hub.setChatEnabled(false);
         lateChat.callback(
             {200,
@@ -158,6 +295,11 @@ int main(int argc, char **argv) {
                                                {"snippet", QJsonObject{{"displayMessage", "late"}}}}}}},
              false});
         require(messages == 1, "chat disabled while request is pending rejects late messages");
+        auto delayedInfo = yh.take();
+        require(delayedInfo.url.path().endsWith("/videos"),
+                "viewer refresh is queued behind chat instead of skipped");
+        delayedInfo.callback({200, video("9"), false});
+        require(hub.info(0).viewers == 9 && yh.calls.empty(), "duplicate viewer refreshes are coalesced");
         QJsonObject twitchSession{
             {"client_id", "twitch-client"},
             {"access_token", "twitch-fixture"},
@@ -176,7 +318,7 @@ int main(int argc, char **argv) {
         th.answer(200, {{"data", QJsonArray{QJsonObject{
                                      {"title", "Twitch title"}, {"game_id", "20"}, {"game_name", "Game"}}}}});
         require(hub.info(1).viewers == 0, "offline Twitch API response means known zero");
-        hub.saveInfo(1, "New Twitch title", {}, "99");
+        hub.saveInfo(1, "New Twitch title", "99");
         auto patch = th.take();
         require(patch.method == "PATCH" && patch.body["game_id"] == "99" &&
                     QUrlQuery(patch.url).queryItemValue("broadcaster_id") == "owner",

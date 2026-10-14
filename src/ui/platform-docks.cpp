@@ -14,7 +14,6 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -55,11 +54,17 @@ ViewerBadge::ViewerBadge(QWidget *parent) : QWidget(parent) {
     setCount(-1);
 }
 QSize ViewerBadge::sizeHint() const {
-    return {30 + fontMetrics().horizontalAdvance(count_ < 0 ? QString("—") : QString::number(count_)), 24};
+    return {30 + fontMetrics().horizontalAdvance(displayCount()), 24};
 }
-void ViewerBadge::setCount(qint64 count) {
+QString ViewerBadge::displayCount() const {
+    return count_ < 0 ? QString("—") : unreported_ ? QString("0*") : QString::number(count_);
+}
+void ViewerBadge::setCount(qint64 count, bool unreported) {
     count_ = count;
-    const auto value = count < 0 ? text("ViewersUnknown") : text("Viewers").arg(count);
+    unreported_ = unreported && count == 0;
+    const auto value = count < 0     ? text("ViewersUnknown")
+                       : unreported_ ? text("ViewersUnreported")
+                                     : text("Viewers").arg(count);
     setToolTip(value);
     setAccessibleName(value);
     updateGeometry();
@@ -80,8 +85,7 @@ void ViewerBadge::paintEvent(QPaintEvent *) {
     p.setBrush(color);
     p.drawEllipse(QRectF(9, 10, 4, 4));
     p.setPen(color);
-    p.drawText(QRect(27, 0, width() - 27, height()), Qt::AlignVCenter,
-               count_ < 0 ? "—" : QString::number(count_));
+    p.drawText(QRect(27, 0, width() - 27, height()), Qt::AlignVCenter, displayCount());
 }
 QWidget *createChatDock(PlatformHub &hub) {
     auto *panel = new QWidget;
@@ -172,12 +176,6 @@ QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
         auto *title = new QLineEdit(panel);
         title->setMaxLength(p == 0 ? 100 : 140);
         form->addRow(text("StreamTitle"), title);
-        auto *description = new QPlainTextEdit(panel);
-        description->setMaximumHeight(120);
-        if (p == 0)
-            form->addRow(text("StreamDescription"), description);
-        else
-            description->hide();
         auto *search = new QLineEdit(panel);
         search->setPlaceholderText(text(p == 0 ? "CategoryRegion" : "CategorySearch"));
         if (p == 0) {
@@ -189,6 +187,13 @@ QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
         form->addRow(find);
         auto *category = new QComboBox(panel);
         form->addRow(text("Category"), category);
+        auto *game = new QPushButton(text("YouTubeChooseGame"), panel);
+        game->setObjectName("youtubeChooseGame");
+        auto *gameHint = label(text("YouTubeGameHint"), panel);
+        form->addRow(game);
+        form->addRow(gameHint);
+        QObject::connect(game, &QPushButton::clicked, panel,
+                         [&hub] { QDesktopServices::openUrl(hub.youtubeStudioUrl()); });
         auto *save = new QPushButton(text("PublishInfo"), panel);
         form->addRow(save);
         auto *reload = new QPushButton(text("ReloadInfo"), panel);
@@ -196,14 +201,16 @@ QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
         auto dirty = std::make_shared<bool>(false);
         auto loadedIdentity = std::make_shared<QString>();
         auto fill = [=, &hub] {
-            const QSignalBlocker titleSignals(title), descriptionSignals(description),
-                categorySignals(category);
+            const QSignalBlocker titleSignals(title), categorySignals(category);
             const auto &info = hub.info(p);
             title->setText(info.title);
-            description->setPlainText(info.description);
             category->clear();
             if (!info.categoryId.isEmpty())
-                category->addItem(info.category.isEmpty() ? info.categoryId : info.category, info.categoryId);
+                category->addItem(
+                    info.category.isEmpty()
+                        ? (p == 0 && info.categoryId == "20" ? text("YouTubeGaming") : info.categoryId)
+                        : info.category,
+                    info.categoryId);
             *dirty = false;
         };
         const auto refresh = [=, &hub] {
@@ -217,19 +224,16 @@ QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
             if (!*dirty)
                 fill();
             title->setEnabled(hub.info(p).loaded);
-            description->setEnabled(hub.info(p).loaded);
+            game->setVisible(p == 0 && category->currentData().toString() == "20");
+            gameHint->setVisible(p == 0 && category->currentData().toString() == "20");
+            game->setEnabled(hub.info(p).loaded && !hub.account(p).broadcastId().isEmpty());
             category->setEnabled(hub.info(p).loaded);
             save->setEnabled(hub.info(p).loaded && !hub.pending(p) && !title->text().trimmed().isEmpty() &&
-                             !category->currentData().toString().isEmpty() &&
-                             (p != 0 || description->toPlainText().toUtf8().size() <= 5000));
+                             !category->currentData().toString().isEmpty());
             find->setEnabled(hub.account(p).linked() && !hub.pending(p));
         };
         QObject::connect(&hub, &PlatformHub::changed, panel, refresh);
         QObject::connect(title, &QLineEdit::textEdited, panel, [=] {
-            *dirty = true;
-            refresh();
-        });
-        QObject::connect(description, &QPlainTextEdit::textChanged, panel, [=] {
             *dirty = true;
             refresh();
         });
@@ -248,7 +252,8 @@ QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
                 return;
             if (p == 0)
                 settings->setValue("youtubeRegion", region);
-            hub.searchCategories(p, search->text(), region);
+            hub.searchCategories(p, search->text(), region,
+                                 text("SetupGuideLanguage") == "ru-RU" ? "ru_RU" : "en_US");
         });
         QObject::connect(&hub, &PlatformHub::categoriesReady, panel,
                          [=](int platform, const QList<Category> &items) {
@@ -267,7 +272,7 @@ QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
                              refresh();
                          });
         QObject::connect(save, &QPushButton::clicked, panel, [=, &hub] {
-            hub.saveInfo(p, title->text(), description->toPlainText(), category->currentData().toString());
+            hub.saveInfo(p, title->text(), category->currentData().toString());
             refresh();
         });
         QObject::connect(&hub, &PlatformHub::saved, panel, [=](int platform) {
@@ -276,23 +281,43 @@ QWidget *createInfoDock(PlatformHub &hub, const QString &directory) {
                 status->setText(text("InfoSaved"));
             }
         });
-        auto *draft = new QPlainTextEdit(panel);
-        draft->setMaximumHeight(90);
-        const auto draftKey = QString("notification/%1").arg(p);
-        draft->setPlainText(settings->value(draftKey).toString());
-        form->addRow(text("NotificationDraft"), draft);
-        form->addRow(label(text("NotificationHint"), panel));
-        auto *copy = new QPushButton(text("CopyNotification"), panel);
-        form->addRow(copy);
+        if (p == 0) {
+            auto *goLive = new QPushButton(text("YouTubeGoLive"), panel);
+            goLive->setObjectName("youtubeGoLive");
+            auto *endLive = new QPushButton(text("YouTubeEndLive"), panel);
+            endLive->setObjectName("youtubeEndLive");
+            auto *controlStatus = label({}, panel);
+            form->addRow(goLive);
+            form->addRow(endLive);
+            form->addRow(controlStatus);
+            QObject::connect(goLive, &QPushButton::clicked, panel, [&hub] { hub.transitionYouTube(true); });
+            QObject::connect(endLive, &QPushButton::clicked, panel, [panel, &hub] {
+                const auto selected = hub.account(0).broadcastId();
+                QMessageBox box(QMessageBox::Question, "YouTube",
+                                text("YouTubeConfirmEnd").arg(hub.info(0).title),
+                                QMessageBox::Yes | QMessageBox::No, panel);
+                box.setTextFormat(Qt::PlainText);
+                box.button(QMessageBox::Yes)->setText(text("ConfirmYes"));
+                box.button(QMessageBox::No)->setText(text("ConfirmNo"));
+                box.setDefaultButton(QMessageBox::No);
+                if (box.exec() == QMessageBox::Yes && selected == hub.account(0).broadcastId())
+                    hub.transitionYouTube(false);
+            });
+            const auto controls = [=, &hub] {
+                const auto state = hub.info(0).broadcastState;
+                const bool ready = hub.account(0).linked() && !hub.account(0).broadcastId().isEmpty() &&
+                                   !hub.youtubeControlPending();
+                goLive->setEnabled(ready && state != "complete" && state != "live");
+                endLive->setEnabled(ready && state != "complete");
+                controlStatus->setText(text(hub.youtubeControlStatus().toUtf8().constData()));
+            };
+            QObject::connect(&hub, &PlatformHub::changed, panel, controls);
+            controls();
+        }
         auto *dashboard = new QPushButton(text("OpenDashboard"), panel);
         form->addRow(dashboard);
-        QObject::connect(draft, &QPlainTextEdit::textChanged, panel,
-                         [=] { settings->setValue(draftKey, draft->toPlainText().left(1000)); });
-        QObject::connect(copy, &QPushButton::clicked, panel,
-                         [draft] { QApplication::clipboard()->setText(draft->toPlainText()); });
-        QObject::connect(dashboard, &QPushButton::clicked, panel, [p] {
-            QDesktopServices::openUrl(
-                QUrl(p == 0 ? "https://studio.youtube.com/" : "https://dashboard.twitch.tv/"));
+        QObject::connect(dashboard, &QPushButton::clicked, panel, [p, &hub] {
+            QDesktopServices::openUrl(p == 0 ? hub.youtubeStudioUrl() : QUrl("https://dashboard.twitch.tv/"));
         });
         auto *scroll = new QScrollArea(tabs);
         scroll->setWidgetResizable(true);

@@ -90,7 +90,7 @@ Dock::Dock(OutputManager &manager, PlatformHub &hub, QWidget *parent) : QWidget(
     layout->addStretch();
     connect(&hub, &PlatformHub::changed, this, [this, &hub] {
         for (int i = 0; i < 2; ++i)
-            viewers_[i]->setCount(hub.info(i).viewers);
+            viewers_[i]->setCount(hub.info(i).viewers, hub.info(i).viewersUnreported);
     });
     connect(&manager_, &OutputManager::changed, this, &Dock::refresh);
     refresh();

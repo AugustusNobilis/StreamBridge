@@ -63,6 +63,8 @@ void obs_module_post_load(void) {
         return;
     manager = std::make_unique<sb::OutputManager>(QString::fromUtf8(path));
     hub = std::make_unique<sb::PlatformHub>(manager->account(0), manager->account(1));
+    QObject::connect(hub.get(), &sb::PlatformHub::youtubeBroadcastEnded, manager.get(),
+                     [] { manager->stop(0); });
     infoDock = sb::createInfoDock(*hub, QString::fromUtf8(path));
     sb::initializeUpdates(QString::fromUtf8(path));
     auto *checker = sb::updateChecker();

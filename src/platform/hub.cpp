@@ -4,8 +4,25 @@
 #include <QJsonArray>
 #include <QRegularExpression>
 #include <algorithm>
+#include <cmath>
 namespace sb {
 static const QString ytScope = "https://www.googleapis.com/auth/youtube.force-ssl";
+static qint64 viewerCount(const QJsonValue &value) {
+    if (value.isString()) {
+        const auto text = value.toString();
+        if (!QRegularExpression("^[0-9]+$").match(text).hasMatch())
+            return -1;
+        bool valid = false;
+        const auto count = text.toLongLong(&valid);
+        return valid ? count : -1;
+    }
+    if (value.isDouble()) {
+        const auto count = value.toDouble();
+        if (std::isfinite(count) && count >= 0 && count <= 9007199254740991.0 && std::floor(count) == count)
+            return static_cast<qint64>(count);
+    }
+    return -1;
+}
 static QUrlQuery query(std::initializer_list<std::pair<QString, QString>> items) {
     QUrlQuery q;
     for (const auto &item : items)
@@ -24,8 +41,7 @@ PlatformHub::PlatformHub(OAuthAccount &youtube, OAuthAccount &twitch, QObject *p
     connect(&youtubeTimer_, &QTimer::timeout, this, &PlatformHub::pollYouTubeChat);
     connect(&infoTimer_, &QTimer::timeout, this, [this] {
         for (int i = 0; i < 2; ++i)
-            if (!pending(i))
-                pollInfo(i);
+            pollInfo(i);
         ensureIrc();
     });
     connect(&ircRetry_, &QTimer::timeout, this, &PlatformHub::ensureIrc);
@@ -79,6 +95,7 @@ PlatformHub::~PlatformHub() {
 }
 void PlatformHub::shutdown() {
     stopped_ = true;
+    youtubeControlPending_ = false;
     chatEnabled_ = false;
     infoTimer_.stop();
     youtubeTimer_.stop();
@@ -90,6 +107,7 @@ void PlatformHub::shutdown() {
         http_[i]->cancel();
         queue_[i].clear();
         working_[i] = false;
+        infoPending_[i] = false;
     }
 }
 void PlatformHub::syncAccounts() {
@@ -105,11 +123,14 @@ void PlatformHub::syncAccounts() {
         http_[i]->cancel();
         queue_[i].clear();
         working_[i] = false;
+        infoPending_[i] = false;
         info_[i] = {};
         emit messagesRemoved(i, {}, {});
         status_[i] = a.linked() ? "PlatformLoading" : "PlatformConnect";
         chatStatus_[i] = chatEnabled_ ? status_[i] : "ChatDisabled";
         if (i == 0) {
+            youtubeControlPending_ = false;
+            youtubeControlStatus_ = "YouTubeControlHint";
             ++chatGeneration_;
             youtubePending_ = false;
             pageToken_.clear();
@@ -185,13 +206,14 @@ void PlatformHub::refresh() {
             chatStatus_[1] = "PlatformLoading";
     }
     for (int i = 0; i < 2; ++i)
-        if (!pending(i))
-            pollInfo(i);
+        pollInfo(i);
     if (chatEnabled_ && !youtubeTimer_.isActive())
         youtubeTimer_.start(0);
     ensureIrc();
 }
 void PlatformHub::pollInfo(int p) {
+    if (stopped_ || infoPending_[p])
+        return;
     if (!account(p).linked()) {
         status_[p] = "PlatformConnect";
         emit changed();
@@ -210,10 +232,13 @@ void PlatformHub::pollInfo(int p) {
             emit changed();
             return;
         }
+        infoPending_[0] = true;
         request(0, "videos", query({{"part", "snippet,liveStreamingDetails"}, {"id", id}}), "GET", {},
                 [this](HttpResult r) {
+                    infoPending_[0] = false;
                     if (!result(0, r)) {
                         info_[0].viewers = -1;
+                        info_[0].viewersUnreported = false;
                         return;
                     }
                     const auto items = r.json["items"].toArray();
@@ -226,13 +251,18 @@ void PlatformHub::pollInfo(int p) {
                     const auto live = video["liveStreamingDetails"].toObject();
                     auto &info = info_[0];
                     info.title = snippet["title"].toString();
-                    info.description = snippet["description"].toString();
                     info.categoryId = snippet["categoryId"].toString();
                     info.loaded = true;
-                    bool valid = false;
-                    info.viewers = live["concurrentViewers"].toString().toLongLong(&valid);
-                    if (!valid || info.viewers < 0)
+                    const bool ended = !live["actualEndTime"].toString().isEmpty();
+                    const bool started = !live["actualStartTime"].toString().isEmpty() && !ended;
+                    const bool liveNow = !ended && (started || snippet["liveBroadcastContent"] == "live");
+                    info.broadcastState = ended ? "complete" : liveNow ? "live" : "upcoming";
+                    info.viewersUnreported = liveNow && !live.contains("concurrentViewers");
+                    info.viewers = info.viewersUnreported ? 0 : viewerCount(live["concurrentViewers"]);
+                    if (ended) {
                         info.viewers = -1;
+                        info.viewersUnreported = false;
+                    }
                     const auto chat = live["activeLiveChatId"].toString();
                     if (info.chatId != chat) {
                         ++chatGeneration_;
@@ -251,6 +281,7 @@ void PlatformHub::pollInfo(int p) {
         const auto user = account(1).userId();
         if (user.isEmpty())
             return;
+        infoPending_[1] = true;
         request(1, "streams", query({{"user_id", user}}), "GET", {}, [this](HttpResult r) {
             if (!result(1, r)) {
                 info_[1].viewers = -1;
@@ -260,6 +291,7 @@ void PlatformHub::pollInfo(int p) {
             info_[1].viewers = data.isEmpty() ? 0 : data[0].toObject()["viewer_count"].toInteger(-1);
         });
         request(1, "channels", query({{"broadcaster_id", user}}), "GET", {}, [this](HttpResult r) {
+            infoPending_[1] = false;
             if (!result(1, r))
                 return;
             const auto data = r.json["data"].toArray();
@@ -410,9 +442,10 @@ void PlatformHub::deliver(ChatMessage message) {
         seen_.remove(seenOrder_.dequeue());
     emit messageReceived(std::move(message));
 }
-void PlatformHub::searchCategories(int p, const QString &term, const QString &region) {
+void PlatformHub::searchCategories(int p, const QString &term, const QString &region,
+                                   const QString &language) {
     const auto path = p == 0 ? "videoCategories" : "search/categories";
-    const auto q = p == 0 ? query({{"part", "snippet"}, {"regionCode", region}, {"hl", "en_US"}})
+    const auto q = p == 0 ? query({{"part", "snippet"}, {"regionCode", region}, {"hl", language}})
                           : query({{"query", term.left(100)}, {"first", "30"}});
     request(p, path, q, "GET", {}, [this, p](HttpResult r) {
         if (!result(p, r))
@@ -428,9 +461,9 @@ void PlatformHub::searchCategories(int p, const QString &term, const QString &re
         emit categoriesReady(p, categories);
     });
 }
-void PlatformHub::saveInfo(int p, const QString &title, const QString &description, const QString &category) {
+void PlatformHub::saveInfo(int p, const QString &title, const QString &category) {
     if (!info_[p].loaded || title.trimmed().isEmpty() || title.size() > (p == 0 ? 100 : 140) ||
-        category.isEmpty() || description.toUtf8().size() > 5000 || pending(p))
+        category.isEmpty() || pending(p))
         return;
     if (!account(p).hasScope(p == 0 ? ytScope : "channel:manage:broadcast")) {
         status_[p] = "PlatformReconnect";
@@ -450,7 +483,7 @@ void PlatformHub::saveInfo(int p, const QString &title, const QString &descripti
     const auto id = account(0).broadcastId();
     // Fetch immediately before updating: videos.update replaces snippet fields.
     request(0, "videos", query({{"part", "snippet"}, {"id", id}}), "GET", {},
-            [this, id, title, description, category](HttpResult r) {
+            [this, id, title, category](HttpResult r) {
                 if (!result(0, r))
                     return;
                 const auto items = r.json["items"].toArray();
@@ -459,8 +492,8 @@ void PlatformHub::saveInfo(int p, const QString &title, const QString &descripti
                     return;
                 }
                 const auto original = items[0].toObject()["snippet"].toObject();
-                QJsonObject snippet{{"title", title}, {"description", description}, {"categoryId", category}};
-                for (const auto *key : {"tags", "defaultLanguage", "defaultAudioLanguage"})
+                QJsonObject snippet{{"title", title}, {"categoryId", category}};
+                for (const auto *key : {"description", "tags", "defaultLanguage", "defaultAudioLanguage"})
                     if (original.contains(key))
                         snippet[key] = original[key];
                 request(0, "videos", query({{"part", "snippet"}}), "PUT", {{"id", id}, {"snippet", snippet}},
@@ -471,6 +504,169 @@ void PlatformHub::saveInfo(int p, const QString &title, const QString &descripti
                             }
                         });
             });
+}
+QUrl PlatformHub::youtubeStudioUrl() const {
+    const auto id = account(0).broadcastId();
+    return QRegularExpression("^[A-Za-z0-9_-]{1,128}$").match(id).hasMatch()
+               ? QUrl("https://studio.youtube.com/video/" + id + "/livestreaming")
+               : QUrl("https://studio.youtube.com/");
+}
+void PlatformHub::finishYouTubeControl(const QString &status) {
+    youtubeControlPending_ = false;
+    youtubeControlStatus_ = status;
+    emit changed();
+}
+void PlatformHub::transitionYouTube(bool live) {
+    if (stopped_ || youtubeControlPending_)
+        return;
+    const auto id = account(0).broadcastId();
+    if (!account(0).linked() || account(0).accessToken().isEmpty() || !account(0).hasScope(ytScope)) {
+        finishYouTubeControl("PlatformReconnect");
+        return;
+    }
+    if (id.isEmpty()) {
+        finishYouTubeControl("PlatformSelectBroadcast");
+        return;
+    }
+    youtubeControlPending_ = true;
+    youtubeControlStatus_ = "YouTubeControlChecking";
+    emit changed();
+    const QString target = live ? "live" : "complete";
+    request(0, "liveBroadcasts", query({{"part", "status,contentDetails"}, {"id", id}}), "GET", {},
+            [this, id, target](HttpResult r) {
+                if (!result(0, r)) {
+                    finishYouTubeControl(status_[0]);
+                    return;
+                }
+                const auto items = r.json["items"].toArray();
+                if (items.size() != 1 || items[0].toObject()["id"].toString() != id) {
+                    finishYouTubeControl("PlatformSelectBroadcast");
+                    return;
+                }
+                const auto broadcast = items[0].toObject();
+                const auto state = broadcast["status"].toObject()["lifeCycleStatus"].toString();
+                info_[0].broadcastState = state;
+                if (state == target) {
+                    finishYouTubeControl(target == "live" ? "YouTubeIsLive" : "YouTubeIsComplete");
+                    if (target == "complete")
+                        emit youtubeBroadcastEnded();
+                    return;
+                }
+                if (target == "complete") {
+                    if (state != "live" && state != "testing") {
+                        finishYouTubeControl("YouTubeInvalidTransition");
+                        return;
+                    }
+                    sendYouTubeTransition(id, target);
+                    return;
+                }
+                if (state != "ready" && state != "testing") {
+                    finishYouTubeControl("YouTubeInvalidTransition");
+                    return;
+                }
+                const auto streamId = broadcast["contentDetails"].toObject()["boundStreamId"].toString();
+                const bool monitor = broadcast["contentDetails"]
+                                         .toObject()["monitorStream"]
+                                         .toObject()["enableMonitorStream"]
+                                         .toBool(true);
+                const QString nextTarget = state == "ready" && monitor ? "testing" : target;
+                if (streamId.isEmpty()) {
+                    finishYouTubeControl("OAuthUnboundBroadcast");
+                    return;
+                }
+                request(0, "liveStreams", query({{"part", "status"}, {"id", streamId}}), "GET", {},
+                        [this, id, streamId, nextTarget](HttpResult stream) {
+                            if (!result(0, stream)) {
+                                finishYouTubeControl(status_[0]);
+                                return;
+                            }
+                            const auto items = stream.json["items"].toArray();
+                            if (items.size() != 1 || items[0].toObject()["id"].toString() != streamId ||
+                                items[0].toObject()["status"].toObject()["streamStatus"] != "active") {
+                                finishYouTubeControl("YouTubeNoSignal");
+                                return;
+                            }
+                            sendYouTubeTransition(id, nextTarget);
+                        });
+            });
+}
+void PlatformHub::sendYouTubeTransition(const QString &id, const QString &target) {
+    request(
+        0, "liveBroadcasts/transition", query({{"part", "status"}, {"id", id}, {"broadcastStatus", target}}),
+        "POST", {}, [this, id, target](HttpResult r) {
+            if (!result(0, r)) {
+                QString status = status_[0];
+                const auto errors = r.json["error"].toObject()["errors"].toArray();
+                const auto reason = errors.isEmpty() ? QString() : errors[0].toObject()["reason"].toString();
+                if (reason == "errorStreamInactive")
+                    status = "YouTubeNoSignal";
+                else if (reason == "invalidTransition" || reason == "redundantTransition")
+                    status = "YouTubeInvalidTransition";
+                finishYouTubeControl(status);
+                return;
+            }
+            const auto state = r.json["status"].toObject()["lifeCycleStatus"].toString();
+            const QString intermediate = target == "testing" ? "testStarting" : "liveStarting";
+            if (r.json["id"].toString() != id ||
+                (state != target && !(target != "complete" && state == intermediate))) {
+                finishYouTubeControl("YouTubeTransitionUnknown");
+                return;
+            }
+            info_[0].broadcastState = state;
+            if (state == target)
+                completeYouTubeTransition(id, target);
+            else {
+                youtubeControlStatus_ = "YouTubeStarting";
+                emit changed();
+                pollYouTubeTransition(id, target);
+            }
+        });
+}
+void PlatformHub::completeYouTubeTransition(const QString &id, const QString &target) {
+    info_[0].broadcastState = target;
+    if (target == "testing") {
+        sendYouTubeTransition(id, "live");
+        return;
+    }
+    if (target == "complete") {
+        info_[0].viewers = -1;
+        info_[0].viewersUnreported = false;
+        finishYouTubeControl("YouTubeIsComplete");
+        emit youtubeBroadcastEnded();
+    } else
+        finishYouTubeControl("YouTubeIsLive");
+    pollInfo(0);
+}
+void PlatformHub::pollYouTubeTransition(const QString &id, const QString &target, unsigned remaining) {
+    if (remaining == 0) {
+        finishYouTubeControl("YouTubeTransitionUnknown");
+        return;
+    }
+    const auto generation = generation_[0];
+    QTimer::singleShot(2000, this, [this, id, target, remaining, generation] {
+        if (stopped_ || generation != generation_[0] || !youtubeControlPending_)
+            return;
+        request(0, "liveBroadcasts", query({{"part", "status"}, {"id", id}}), "GET", {},
+                [this, id, target, remaining](HttpResult r) {
+                    if (!result(0, r)) {
+                        finishYouTubeControl(status_[0]);
+                        return;
+                    }
+                    const auto items = r.json["items"].toArray();
+                    if (items.size() != 1 || items[0].toObject()["id"].toString() != id) {
+                        finishYouTubeControl("PlatformSelectBroadcast");
+                        return;
+                    }
+                    const auto state = items[0].toObject()["status"].toObject()["lifeCycleStatus"].toString();
+                    info_[0].broadcastState = state;
+                    if (state == target)
+                        completeYouTubeTransition(id, target);
+                    else if (state == "testStarting" || state == "liveStarting")
+                        pollYouTubeTransition(id, target, remaining - 1);
+                    else
+                        finishYouTubeControl("YouTubeInvalidTransition");
+                });
+    });
 }
 bool PlatformHub::canModerate(const ChatMessage &m, bool ban) const {
     if (m.platform < 0 || m.platform > 1 || !m.moderatable || m.id.isEmpty() || (ban && m.userId.isEmpty()))

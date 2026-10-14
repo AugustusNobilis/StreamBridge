@@ -1,77 +1,43 @@
-# StreamBridge 0.2.2
+# StreamBridge 0.2.3
 
 ## Русский
 
-Предварительная версия для **Windows x64 и OBS Studio 32 с Qt 6.8**.
+Предварительная версия для Windows x64 и OBS Studio 32 с Qt 6.8.
 
-### Что изменилось
+- **Счётчик YouTube:** обновления больше не пропускаются при загрузке чата. Поддерживаются числовые и строковые значения. Подтверждённый ноль отображается как **0**; отсутствующее поле в активном эфире — как `0*` с пояснением «ноль или скрытый счётчик». Ошибка API, ещё не начатый и завершённый эфир показывают **—**.
+- **Начало и завершение эфира:** в панели **StreamBridge — Данные трансляции → YouTube** появились соответствующие кнопки. Сначала запустите отправку видео в основной панели, затем нажмите **Начать эфир YouTube**. Плагин проверяет сигнал и ждёт подтверждения YouTube.
+- **Завершение:** после подтверждения в плагине и успешного ответа YouTube эфир завершается, а выход YouTube останавливается. Twitch продолжает работать. Завершённый эфир нельзя возобновить.
+- **Панель данных упрощена:** описание и уведомления удалены. Изменение названия и категории сохраняет существующее описание на YouTube.
+- **Категория «Игры»:** названия категорий переведены на язык интерфейса; кнопка **Выбрать игру в YouTube Studio** открывает выбранный эфир. Отдельное название игры публичный API YouTube не позволяет задать.
 
-- Во вкладке «Обновления» одна основная кнопка последовательно проверяет наличие версии, скачивает её и предлагает **Установить и перезапустить OBS**.
-- После успешной установки OBS запускается снова. Перед обновлением нужно остановить трансляции, запись, буфер повтора и виртуальную камеру.
-- Для входа в YouTube добавлен **импорт JSON Desktop-клиента Google Cloud**. Он устраняет проблему, при которой согласие в браузере получено, но Google требует дополнительные данные клиента для завершения входа.
+### Установка
 
-### Что скачать
+1. Для первой установки скачайте **obs-streambridge-0.2.3-windows-x64-setup.exe** из Assets.
+2. Для старой установки используйте **updater.exe** либо **Настройки StreamBridge → Обновления** с включёнными предварительными версиями.
+3. При ручной установке закройте OBS и выберите его корневую папку, содержащую **bin → 64bit → obs64.exe**. Настройки и ключи сохраняются.
 
-| Файл | Когда использовать |
-| --- | --- |
-| **obs-streambridge-0.2.2-windows-x64-setup.exe** | Первая установка или установка поверх существующей версии. |
-| **updater.exe** | Обновление старого StreamBridge: небольшая программа скачает установщик и обновит выбранную установку OBS. |
-| **SHA256SUMS.txt** | Проверка контрольных сумм скачанных файлов. |
+[Инструкция YouTube](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.ru.md) · [Инструкция Twitch](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.ru.md)
 
-1. Закройте OBS и запустите выбранную программу.
-2. Укажите корневую папку OBS, содержащую **bin → 64bit → obs64.exe**.
-3. Дождитесь окончания установки и откройте OBS. Настройки и ключи сохраняются.
-
-При переходе со старой версии на 0.2.2 OBS нужно закрыть и открыть вручную. Кнопка установки с автоматическим перезапуском станет доступна в самом плагине для следующих обновлений. Отдельный **updater.exe** не закрывает и не перезапускает OBS автоматически.
-
-Для получения этой версии через настройки плагина включите **Получать опубликованные предварительные версии**. Сборка пока не имеет цифровой подписи.
-
-### Как подключить YouTube
-
-1. В своём проекте Google Cloud включите YouTube Data API v3 и добавьте аккаунт в тестовые пользователи.
-2. В **Google Auth Platform → Clients → Create client** создайте **Desktop app**.
-3. **Скачайте JSON в окне создания клиента до его закрытия.** Если прежний файл потерян, создайте ещё один Desktop-клиент в том же проекте.
-4. В **Настройки StreamBridge → YouTube → Настройка подключения · Client ID** нажмите **Импортировать JSON из Google Cloud…**, выберите файл и подключите аккаунт.
-
-[Подробная настройка YouTube](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.ru.md) · [Подробная настройка Twitch](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.ru.md) · [Установка и использование](https://github.com/AugustusNobilis/StreamBridge#русский)
-
-Автор — [AugustusNobilis](https://github.com/AugustusNobilis). Официальная версия бесплатна; исходный код распространяется под GPL-2.0-or-later.
+Новые действия API проверены автоматическими сценариями; их проверка на реальном эфире остаётся за пользователем. Пакеты пока не подписаны. Официальная версия бесплатна, лицензия GPL-2.0-or-later. Автор — [AugustusNobilis](https://github.com/AugustusNobilis).
 
 ---
 
 ## English
 
-A preview release for **Windows x64 and OBS Studio 32 with Qt 6.8**.
+A preview for Windows x64 and OBS Studio 32 with Qt 6.8.
 
-### What changed
+- **YouTube viewers:** chat traffic no longer causes viewer refreshes to be skipped. Numeric and string counts are supported. A confirmed zero displays **0**; an omitted count during a live broadcast displays `0*` with a zero-or-hidden explanation. API failures, upcoming broadcasts and ended broadcasts display **—**.
+- **Go live and end broadcast:** controls are available under **StreamBridge — Stream information → YouTube**. Start sending video from the main dock, then click **Go live on YouTube**. The plugin checks the signal and waits for YouTube confirmation.
+- **Ending:** after confirmation in the plugin and a successful YouTube response, the broadcast ends and the YouTube output stops. Twitch continues. A completed broadcast cannot be resumed.
+- **Simpler information dock:** description and notification fields have been removed. Title/category edits preserve the existing YouTube description.
+- **Gaming:** category names follow the interface language. **Choose game in YouTube Studio** opens the selected broadcast because the public API does not support setting the specific game title.
 
-- One main button on the Updates tab checks for a release, downloads it and offers **Install and restart OBS**.
-- OBS launches again after successful installation. Stop streams, recording, replay buffer and virtual camera before updating.
-- **Google Cloud Desktop client JSON import** completes YouTube sign-in when browser consent succeeds but Google requires additional client credentials.
+### Installation
 
-### What to download
+1. For a first installation, download **obs-streambridge-0.2.3-windows-x64-setup.exe** from Assets.
+2. For an existing installation, use **updater.exe** or **StreamBridge Settings → Updates** with preview releases enabled.
+3. For manual installation, close OBS and select its root folder containing **bin → 64bit → obs64.exe**. Settings and credentials are preserved.
 
-| File | When to use it |
-| --- | --- |
-| **obs-streambridge-0.2.2-windows-x64-setup.exe** | First installation or installation over an existing version. |
-| **updater.exe** | Updating an older StreamBridge installation: this small program downloads the installer and updates the selected OBS installation. |
-| **SHA256SUMS.txt** | Verifying downloaded file checksums. |
+[YouTube instructions](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.en.md) · [Twitch instructions](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.en.md)
 
-1. Close OBS and run the chosen program.
-2. Select the OBS root folder containing **bin → 64bit → obs64.exe**.
-3. Wait for installation to finish, then open OBS. Settings and credentials are preserved.
-
-When upgrading from an older version to 0.2.2, close and reopen OBS manually. The in-plugin installation button with automatic restart becomes available for subsequent updates. The standalone **updater.exe** does not automatically close or restart OBS.
-
-Enable **Include published preview releases** to receive this version through plugin settings. The build is currently unsigned.
-
-### How to connect YouTube
-
-1. Enable YouTube Data API v3 in your own Google Cloud project and add your account as a test user.
-2. In **Google Auth Platform → Clients → Create client**, create a **Desktop app**.
-3. **Download JSON in the creation dialog before closing it.** If the previous file was lost, create another Desktop client in the same project.
-4. Open **StreamBridge Settings → YouTube → Account setup · Client ID**, click **Import JSON from Google Cloud…**, select the file and connect your account.
-
-[Complete YouTube setup](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.en.md) · [Complete Twitch setup](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.en.md) · [Installation and usage](https://github.com/AugustusNobilis/StreamBridge#english)
-
-Created by [AugustusNobilis](https://github.com/AugustusNobilis). The official version is free; source code is licensed under GPL-2.0-or-later.
+New API actions have automated coverage; real-broadcast acceptance remains for the user. Packages are currently unsigned. The official version is free, licensed under GPL-2.0-or-later. Created by [AugustusNobilis](https://github.com/AugustusNobilis).

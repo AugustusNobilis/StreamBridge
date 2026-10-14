@@ -1,5 +1,13 @@
 # Executed validation
 
+## YouTube lifecycle and viewer counts 0.2.3 / 2026-10-14
+
+All nine CTest suites passed. Platform fixtures cover numeric/string/zero counts, omitted counts with an explicit zero-or-hidden marker, malformed data, upcoming/completed broadcasts, API failures, viewer refresh queueing behind chat and duplicate refresh coalescing. Title/category updates preserve an existing description, tags and language.
+
+Lifecycle tests cover selected-broadcast targeting, active-ingest checks, duplicate-click suppression, direct go-live, monitor/testing transitions, delayed testStarting/liveStarting confirmation, failed and mismatched completion responses, confirmed end notification and rejection of restarting a completed broadcast. These use simulated provider responses: no real user's broadcast was started or ended.
+
+Russian and English production widgets rendered successfully; description and notification editors are absent and lifecycle controls are present. The Russian dock layout was visually inspected. A separate portable OBS loaded all three docks and the production browser source, passed stream coexistence/independent stop checks, and closed normally. The user's installed OBS and platform state were not modified.
+
 ## Restart updater and Desktop OAuth 0.2.2 / 2026-10-14
 
 All nine CTest suites passed. After additional UI and restart-guard assertions, OAuth, updates and UI passed again. New OAuth fixtures cover Desktop JSON parsing, Web-client rejection, import size limits, fixed token endpoint despite a supplied alternate URL, secret-free browser URL, encrypted credential persistence, refresh after process-session reconstruction, rotation, disconnect and safe actionable error mapping. These use simulated provider responses and a real TCP loopback callback, not a real Google account.

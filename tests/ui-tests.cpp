@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QListWidget>
 #include <QPalette>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -85,6 +86,12 @@ int main(int argc, char **argv) {
                 chat->setFixedWidth(320);
                 row->addWidget(chat);
                 auto *info = sb::createInfoDock(hub, directory.path());
+                require(info->findChildren<QPlainTextEdit *>().empty(),
+                        "stream information has no description or notification editors");
+                require(info->findChild<QPushButton *>("youtubeGoLive") &&
+                            info->findChild<QPushButton *>("youtubeEndLive") &&
+                            info->findChild<QPushButton *>("youtubeChooseGame"),
+                        "YouTube lifecycle controls and game shortcut exist");
                 info->setFixedWidth(340);
                 row->addWidget(info);
                 emit hub.messageReceived({0, "demo-y", "viewer-a", "Алексей", "Привет! Отлично слышно.",

@@ -68,7 +68,7 @@ Connecting an account does not start a broadcast. The Twitch control in StreamBr
 5. Type a game or category name in the search field and click **Find categories**.
 6. Select a result and click **Publish title and category**.
 
-The go-live notification field is a local draft. Use **Copy notification** to take its text to the Twitch dashboard; the plugin does not publish it automatically.
+Edit the title and category in the plugin. Configure go-live notification text in the Twitch dashboard; the separate StreamBridge field has been removed.
 
 ## Troubleshooting
 

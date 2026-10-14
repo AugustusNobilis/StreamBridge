@@ -19,7 +19,7 @@ try {
     Assert ($report[0].StartsWith('verified ')) 'download reports verification success'
     $file = $report[0].Substring(9)
     Assert ((Get-FileHash -LiteralPath $file).Hash.ToLowerInvariant() -eq $report[1]) 'GitHub SHA-256 matches actual downloaded EXE'
-    foreach ($oldVersion in @('0.1.0','0.1.1')) {
+    foreach ($oldVersion in @('0.1.0','0.1.1','0.1.2')) {
         $root = Join-Path $fixture "Файлы программ/OBS $oldVersion"
         New-Item -ItemType Directory -Force "$root/bin/64bit","$root/obs-plugins/64bit","$root/data/obs-plugins/obs-streambridge" | Out-Null
         Copy-Item -LiteralPath (Resolve-Path -LiteralPath $HostExecutable).Path -Destination "$root/bin/64bit/obs64.exe"

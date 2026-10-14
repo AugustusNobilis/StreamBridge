@@ -232,7 +232,8 @@ bool refresh(obs_properties_t *, obs_property_t *, void *data) {
     return false;
 }
 const char *name(void *) {
-    return obs_module_text("BrowserName");
+    static const auto localized = text("BrowserName").toUtf8();
+    return localized.constData();
 }
 void *create(obs_data_t *, obs_source_t *source) {
     obs_source_set_async_unbuffered(source, true);
@@ -248,9 +249,9 @@ void destroy(void *source) {
 }
 obs_properties_t *properties(void *data) {
     auto *p = obs_properties_create();
-    obs_properties_add_text(p, "privacy", obs_module_text("BrowserPrivacy"), OBS_TEXT_INFO);
-    obs_properties_add_button(p, "configure", obs_module_text("BrowserConfigure"), configure);
-    obs_properties_add_button(p, "refresh", obs_module_text("BrowserRefresh"), refresh);
+    obs_properties_add_text(p, "privacy", text("BrowserPrivacy").toUtf8().constData(), OBS_TEXT_INFO);
+    obs_properties_add_button(p, "configure", text("BrowserConfigure").toUtf8().constData(), configure);
+    obs_properties_add_button(p, "refresh", text("BrowserRefresh").toUtf8().constData(), refresh);
     if (auto *source = static_cast<Source *>(data)) {
         const auto status = text(source->status().toUtf8().constData()).toUtf8();
         obs_properties_add_text(p, "status", status.constData(), OBS_TEXT_INFO);

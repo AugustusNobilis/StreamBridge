@@ -44,6 +44,10 @@ static void frontendEvent(enum obs_frontend_event event, void *) {
 bool obs_module_load(void) {
     if ((obs_get_version() >> 24) < 32)
         return false;
+    if (char *path = obs_module_config_path("")) {
+        sb::initializeLocale(QString::fromUtf8(path));
+        bfree(path);
+    }
     // OBS does not necessarily ship a TLS backend for its Qt Network DLL.
     char *tlsPath = obs_module_file("qt-plugins");
     if (tlsPath) {
@@ -58,7 +62,6 @@ void obs_module_post_load(void) {
     if (!path)
         return;
     manager = std::make_unique<sb::OutputManager>(QString::fromUtf8(path));
-    sb::initializeLocale(QString::fromUtf8(path));
     hub = std::make_unique<sb::PlatformHub>(manager->account(0), manager->account(1));
     infoDock = sb::createInfoDock(*hub, QString::fromUtf8(path));
     sb::initializeUpdates(QString::fromUtf8(path));

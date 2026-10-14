@@ -17,6 +17,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Helper sandbox ACL failed' }
 $config = Join-Path $ObsRoot 'config/obs-studio'
 $userConfig = Join-Path $config 'user.ini'
 $previous = if (Test-Path $userConfig) { [IO.File]::ReadAllBytes($userConfig) } else { $null }
+$pluginPreferences = Join-Path $config 'plugin_config/obs-streambridge/ui.ini'
+$previousPreferences = if (Test-Path $pluginPreferences) { [IO.File]::ReadAllBytes($pluginPreferences) } else { $null }
 New-Item -ItemType Directory -Force "$config/basic/profiles/StreamBridge-Test","$config/basic/scenes" | Out-Null
 Set-Content "$config/basic/profiles/StreamBridge-Test/basic.ini" @'
 [General]
@@ -61,6 +63,8 @@ paths:
 $server = $null
 $obs = $null
 try {
+    New-Item -ItemType Directory -Force (Split-Path $pluginPreferences -Parent) | Out-Null
+    Set-Content -LiteralPath $pluginPreferences -Value @('[General]','language=en-US') -Encoding utf8
     Set-Content $userConfig @'
 [General]
 FirstRun=true
@@ -90,6 +94,8 @@ WarnBeforeStoppingStream=false
     if ($obs -and -not $obs.HasExited) { Stop-Process -Id $obs.Id -Force }
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
     if ($null -ne $previous) { [IO.File]::WriteAllBytes($userConfig,$previous) }
+    if ($null -ne $previousPreferences) { [IO.File]::WriteAllBytes($pluginPreferences,$previousPreferences) }
+    else { Remove-Item -LiteralPath $pluginPreferences -ErrorAction SilentlyContinue }
     Remove-Item -LiteralPath "$ObsRoot/obs-plugins/64bit/streambridge-frontend-test.dll" -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath "$moduleData/run.txt" -ErrorAction SilentlyContinue
 }

@@ -160,6 +160,13 @@ void start() {
         }
     }
     report("PASS: all three production StreamBridge docks registered in OBS");
+    const auto *chat = window->findChild<QDockWidget *>("streambridge-chat");
+    if (chat->windowTitle() != "StreamBridge — Chat" ||
+        QString::fromUtf8(obs_source_get_display_name("streambridge_browser")) != "Proxied Browser Source") {
+        finish(false, "saved plugin language was not applied to docks and browser source");
+        return;
+    }
+    report("PASS: saved English plugin language applies to docks and browser source");
     auto *browserSource =
         obs_source_create_private("streambridge_browser", "Unconfigured browser lifecycle test", nullptr);
     if (!browserSource) {

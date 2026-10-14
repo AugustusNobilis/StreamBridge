@@ -26,7 +26,7 @@ foreach ($dependency in $lock.dependencies) {
 if ($VerifyOnly) { return }
 $prefix = ($deps + '/obs-deps-2025-08-23-x64;' + $deps + '/obs-deps-qt6-2025-08-23-x64').Replace('\','/')
 & "$PSScriptRoot/cmake.ps1" -CMakeArgs @('-S',"$deps/obs-studio-32.0.4",'-B',"$deps/obs-build",'-G','Visual Studio 17 2022','-A','x64',
-    '-DENABLE_FRONTEND=OFF','-DENABLE_PLUGINS=OFF','-DENABLE_SCRIPTING=OFF','-DENABLE_BROWSER=OFF',"-DCMAKE_PREFIX_PATH=$prefix")
+    '-DOBS_VERSION_OVERRIDE=32.0.4','-DENABLE_FRONTEND=OFF','-DENABLE_PLUGINS=OFF','-DENABLE_SCRIPTING=OFF','-DENABLE_BROWSER=OFF',"-DCMAKE_PREFIX_PATH=$prefix")
 if ($LASTEXITCODE -ne 0) { throw 'OBS SDK configuration failed' }
 & "$PSScriptRoot/cmake.ps1" -CMakeArgs @('--build',"$deps/obs-build",'--config','Release','--target','obs-frontend-api','--parallel','4')
 if ($LASTEXITCODE -ne 0) { throw 'OBS SDK build failed' }

@@ -5,11 +5,16 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFile>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QTextBrowser>
+#include <QVBoxLayout>
 
 namespace sb {
 QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
@@ -18,6 +23,29 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     auto &account = manager.account(index);
     auto *connect = new QPushButton(text(index == 0 ? "ConnectYouTube" : "ConnectTwitch"), panel);
     form->addRow(connect);
+    auto *guide = new QPushButton(text(index == 0 ? "YouTubeSetupGuide" : "TwitchSetupGuide"), panel);
+    guide->setObjectName(index == 0 ? "youtubeSetupGuide" : "twitchSetupGuide");
+    form->addRow(guide);
+    QObject::connect(guide, &QPushButton::clicked, panel, [panel, index, guide] {
+        auto *dialog = new QDialog(panel);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setObjectName("accountSetupGuide");
+        dialog->setWindowTitle(guide->text());
+        dialog->resize(760, 680);
+        auto *layout = new QVBoxLayout(dialog);
+        auto *body = new QTextBrowser(dialog);
+        body->setOpenExternalLinks(true);
+        const QString platform = index == 0 ? "youtube" : "twitch";
+        const QString locale = text("SetupGuideLanguage") == "ru-RU" ? "ru-RU" : "en-US";
+        QFile file(":/streambridge/help/" + platform + "-" + locale + ".md");
+        if (file.open(QIODevice::ReadOnly))
+            body->setMarkdown(QString::fromUtf8(file.readAll()));
+        layout->addWidget(body);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+        QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+        layout->addWidget(buttons);
+        dialog->open();
+    });
     auto *advanced = new QGroupBox(text("OAuthSetup"), panel);
     advanced->setCheckable(true);
     advanced->setChecked(account.clientId().isEmpty());
@@ -41,7 +69,7 @@ QWidget *accountPanel(OutputManager &manager, size_t index, QWidget *parent) {
     QObject::connect(advanced, &QGroupBox::toggled, panel, collapse);
     collapse(advanced->isChecked());
     QObject::connect(registerApp, &QPushButton::clicked, panel, [index] {
-        QDesktopServices::openUrl(QUrl(index == 0 ? "https://console.cloud.google.com/apis/credentials"
+        QDesktopServices::openUrl(QUrl(index == 0 ? "https://console.cloud.google.com/auth/overview"
                                                   : "https://dev.twitch.tv/console/apps"));
     });
     auto *status = new QLabel(panel);

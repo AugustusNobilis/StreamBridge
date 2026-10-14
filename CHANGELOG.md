@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — account setup guides and update race fix, 2026-10-14
+
+- Add offline Russian/English step-by-step guides beside the YouTube and Twitch account buttons, using the same documents as GitHub.
+- Explain Google's tester-related 403, Desktop client setup and broadcast selection; specify Twitch registration fields and Public device authorization.
+- Handle OBS exiting before the compressed update installer initializes. A missing process no longer aborts installation; live process identity, destination, ownership, permissions and in-use-file checks remain enforced.
+- Add immediate-exit and restarted-host updater regression coverage.
+
 ## 0.2.0 — platform docks and interface, 2026-10-14
 
 - Add viewer eye badges with unknown/zero/positive states.

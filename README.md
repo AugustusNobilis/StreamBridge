@@ -18,7 +18,7 @@
 ### Установка и обновление
 
 1. Скачайте **setup.exe** из [релиза](https://github.com/AugustusNobilis/StreamBridge/releases), закройте OBS и выберите его корневую папку, содержащую `bin/64bit/obs64.exe`. Portable OBS поддерживается.
-2. Уже установлен StreamBridge? Используйте **updater.exe** из релиза 0.2.0 или **Настройки → Обновления**. Для текущих предварительных сборок включите их получение. Настройки и ключи сохранятся.
+2. Уже установлен StreamBridge? Используйте **updater.exe** из релиза 0.2.1 или **Настройки → Обновления**. Для текущих предварительных сборок включите их получение. Настройки и ключи сохранятся.
 3. После установки откройте OBS. В меню **Док-панели** включите StreamBridge, StreamBridge — Чат и StreamBridge — Данные трансляции.
 4. На вкладке YouTube/Twitch выберите сервер, сохраните ключ и настройки — либо привяжите аккаунт. Для чата нажмите **Подключить чат**.
 
@@ -28,9 +28,11 @@
 
 Для ручного ключа регистрация приложения не нужна. **Для чата, зрителей и редактора нужен OAuth Client ID**: Google типа Desktop или Twitch типа Public. Разверните «Настройка подключения · Client ID» и воспользуйтесь кнопкой регистрации. Затем «Привязать аккаунт» откроет сайт площадки; для Twitch появится код подтверждения.
 
-YouTube: включите YouTube Data API v3, разрешите свой аккаунт в тестовых пользователях, создайте трансляцию в Studio, загрузите список в StreamBridge и выберите нужную. Старые подключения нужно переподключить для новых прав. [Подробная настройка OAuth](docs/OAUTH.md).
+Пошаговые инструкции: **[YouTube, включая ошибку 403](docs/YOUTUBE-SETUP.ru.md)** · **[Twitch: что заполнять в форме регистрации](docs/TWITCH-SETUP.ru.md)**. Эти же инструкции доступны без интернета по кнопке на вкладке площадки. Старые подключения нужно переподключить для новых прав.
 
-**0.2.0 — предварительная версия.** Чат и действия API проверены автоматическими сценариями; вход и модерация на реальных аккаунтах ещё требуют проверки с зарегистрированными Client ID. Чат YouTube расходует квоту API. Отдельный текст уведомления о начале стрима не поддерживается публичными API: в плагине это локальный черновик, а описание YouTube публикуется отдельно. [Возможности и ограничения](docs/PLATFORMS.md).
+**Обновление после закрытия OBS:** включённая автозагрузка только скачивает пакет. Во вкладке «Обновления» дождитесь окончания загрузки, нажмите **Установить после закрытия OBS**, затем закройте OBS обычным способом. Версия 0.2.1 исправляет ошибку при закрытии OBS до завершения распаковки установщика. Проверяйте результат по строке текущей версии после следующего запуска.
+
+**0.2.1 — предварительная версия.** Чат и действия API проверены автоматическими сценариями; вход и модерация на реальных аккаунтах ещё требуют проверки с зарегистрированными Client ID. Чат YouTube расходует квоту API. Отдельный текст уведомления о начале стрима не поддерживается публичными API: в плагине это локальный черновик, а описание YouTube публикуется отдельно. [Возможности и ограничения](docs/PLATFORMS.md).
 
 ## English
 
@@ -47,13 +49,15 @@ A free OBS Studio plugin for independent simultaneous **YouTube and Twitch** str
 ### Setup
 
 1. Download **setup.exe** from [Releases](https://github.com/AugustusNobilis/StreamBridge/releases), close OBS and select its root folder containing `bin/64bit/obs64.exe`. Portable installations are supported.
-2. Existing users can run **updater.exe** from release 0.2.0, or use **Settings → Updates**. Enable preview releases for current development builds. Settings and credentials are preserved.
+2. Existing users can run **updater.exe** from release 0.2.1, or use **Settings → Updates**. Enable preview releases for current development builds. Settings and credentials are preserved.
 3. Enable the StreamBridge, Chat and Stream information panels in OBS's **Docks** menu.
 4. Select a server and save your stream key, or connect an account. Click **Connect chat** in the chat dock.
 
-For account features, register a **Google Desktop** / **Twitch Public** application and enter its Client ID under Account setup. Connect opens the platform website; Twitch uses a displayed device code. YouTube needs Data API v3 enabled, a permitted test user and an existing selected broadcast. Reconnect older accounts to grant new permissions. [OAuth setup](docs/OAUTH.md).
+For account features, register a **Google Desktop** / **Twitch Public** application and enter its Client ID under Account setup. Follow the **[YouTube guide, including 403 errors](docs/YOUTUBE-SETUP.en.md)** or **[Twitch registration guide](docs/TWITCH-SETUP.en.md)**. The same guides are available offline from each platform tab. Reconnect older accounts to grant current permissions.
 
-**0.2.0 is a development preview.** Real-account consent and moderation acceptance are pending registered Client IDs; automated tests use synthetic provider responses. YouTube chat consumes API quota. Separate go-live notification text is not exposed by these public APIs, so that field is a copyable local draft. [Platform behavior and limits](docs/PLATFORMS.md).
+**Updating after closing OBS:** automatic downloads only fetch the package. Wait for the download to finish, click **Install after OBS closes** in Updates, then close OBS normally. Version 0.2.1 fixes installation when OBS exits before the installer has finished unpacking. Check the installed-version line after restarting.
+
+**0.2.1 is a development preview.** Real-account consent and moderation acceptance are pending registered Client IDs; automated tests use synthetic provider responses. YouTube chat consumes API quota. Separate go-live notification text is not exposed by these public APIs, so that field is a copyable local draft. [Platform behavior and limits](docs/PLATFORMS.md).
 
 ## License / Лицензия
 

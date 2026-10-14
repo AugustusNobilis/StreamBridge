@@ -24,15 +24,15 @@ int main() {
         const std::string digest = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
         const auto asset =
             std::string(
-                R"({"name":"obs-streambridge-0.2.0-windows-x64-setup.exe","state":"uploaded","size":3,"digest":"sha256:)") +
+                R"({"name":"obs-streambridge-0.2.1-windows-x64-setup.exe","state":"uploaded","size":3,"digest":"sha256:)") +
             digest + R"(","browser_download_url":")" + winrt::to_string(bootstrap::assetUrl) + R"("})";
         const auto json =
-            std::string(R"({"tag_name":"v0.2.0","draft":false,"prerelease":true,"assets":[)") + asset + "]}";
+            std::string(R"({"tag_name":"v0.2.1","draft":false,"prerelease":true,"assets":[)") + asset + "]}";
         const auto release = bootstrap::parseRelease(json);
         check(release.size == 3 && winrt::to_string(release.digest) == digest,
               "fixed preview release metadata accepted");
         auto bad = json;
-        bad.replace(bad.find("v0.2.0"), 6, "v0.2.1");
+        bad.replace(bad.find("v0.2.1"), 6, "v0.2.2");
         rejected([&] { bootstrap::parseRelease(bad); }, "other release rejected");
         bad = json;
         bad.replace(bad.find("false"), 5, "true");

@@ -78,7 +78,7 @@ std::wstring header(HINTERNET request, DWORD field) {
 using Sink = std::function<void(const char *, DWORD)>;
 void get(const std::wstring &initial, bool asset, std::uint64_t limit, std::atomic_bool &cancel,
          const Sink &sink) {
-    Internet session(WinHttpOpen(L"StreamBridge-Updater/0.2.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+    Internet session(WinHttpOpen(L"StreamBridge-Updater/0.2.1", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                                  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
     require(WinHttpSetTimeouts(session.value, 30000, 30000, 30000, 30000), L"Ошибка сетевых настроек.");
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(15);
@@ -114,7 +114,7 @@ void get(const std::wstring &initial, bool asset, std::uint64_t limit, std::atom
             continue;
         }
         if (status == 404)
-            throw Failure{L"Версия 0.2.0 ещё не опубликована на GitHub. Повторите позже."};
+            throw Failure{L"Версия 0.2.1 ещё не опубликована на GitHub. Повторите позже."};
         if (status == 403 || status == 429)
             throw Failure{L"GitHub временно ограничил запросы. Повторите позже."};
         require(status == 200, L"GitHub не смог выдать пакет. Повторите загрузку позже.");
@@ -178,7 +178,7 @@ Release parseRelease(const std::string &json) {
     try {
         using namespace winrt::Windows::Data::Json;
         auto document = JsonObject::Parse(winrt::to_hstring(json));
-        require(document.GetNamedString(L"tag_name") == L"v0.2.0" && !document.GetNamedBoolean(L"draft"),
+        require(document.GetNamedString(L"tag_name") == L"v0.2.1" && !document.GetNamedBoolean(L"draft"),
                 L"GitHub вернул другую версию.");
         Release release{};
         for (const auto &entry : document.GetNamedArray(L"assets")) {
@@ -244,9 +244,9 @@ bool verifyFile(const fs::path &file, const Release &release) {
            sha256(handle.value) == release.digest;
 }
 Download download(const fs::path &cache, std::atomic_bool &cancel, const Progress &progress) {
-    progress(L"Проверка релиза 0.2.0 на GitHub…", 0);
+    progress(L"Проверка релиза 0.2.1 на GitHub…", 0);
     std::string json;
-    get(L"https://api.github.com/repos/AugustusNobilis/StreamBridge/releases/tags/v0.2.0", false,
+    get(L"https://api.github.com/repos/AugustusNobilis/StreamBridge/releases/tags/v0.2.1", false,
         2 * 1024 * 1024, cancel, [&](const char *data, DWORD size) { json.append(data, size); });
     Download result;
     result.release = parseRelease(json);
@@ -362,7 +362,7 @@ void install(const Download &download, const fs::path &selectedRoot, const Progr
                    !writable(root / L"data/obs-plugins") ||
                    !writable(root / L"data/obs-plugins/obs-streambridge");
     progress(waiting ? L"Закройте OBS обычным способом. Обновление продолжится автоматически."
-                     : L"Установка 0.2.0. Настройки StreamBridge сохраняются.",
+                     : L"Установка 0.2.1. Настройки StreamBridge сохраняются.",
              100);
     const auto directory = download.file.parent_path().wstring();
     SHELLEXECUTEINFOW info{sizeof(SHELLEXECUTEINFOW)};

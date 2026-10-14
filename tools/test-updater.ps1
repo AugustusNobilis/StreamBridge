@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$Installer,
-      [string]$HostExecutable = "$PSScriptRoot/../build/Release/update-host-fixture.exe")
+      [string]$HostExecutable = "$PSScriptRoot/../build/Release/update-host-fixture.exe",
+      [switch]$ImmediateExit, [switch]$RestartBeforeInstall)
 $ErrorActionPreference = 'Stop'
 $workspace = (Resolve-Path "$PSScriptRoot/..").Path
 $fixture = [IO.Path]::GetFullPath((Join-Path $workspace ('.deps/updater-test-' + [Guid]::NewGuid().ToString('N'))))
@@ -33,6 +34,42 @@ $hostProcess = Start-Process -FilePath "$root/bin/64bit/obs64.exe" -ArgumentList
 try {
     Start-Sleep -Milliseconds 300
     Assert (-not $hostProcess.HasExited) 'isolated host fixture starts'
+    if ($RestartBeforeInstall) {
+        $oldPid = $hostProcess.Id
+        $oldCreated = $hostProcess.StartTime.ToUniversalTime().ToFileTimeUtc()
+        Set-Content -LiteralPath $control 'exit'
+        Assert ($hostProcess.WaitForExit(10000)) 'original host exits before installer launch'
+        $hostProcess.Dispose()
+        Set-Content -LiteralPath $control 'idle'
+        $hostProcess = Start-Process -FilePath "$root/bin/64bit/obs64.exe" -ArgumentList ('"{0}" "{1}" "{2}"' -f "$download/setup.exe",$control,$result) -WindowStyle Hidden -PassThru
+        $installerProcess = Start-Process -FilePath "$download/setup.exe" -ArgumentList "/S /UPDATEPID=$oldPid /UPDATECREATED=$oldCreated /D=$root" -WindowStyle Hidden -PassThru
+        Start-Sleep -Seconds 6
+        Assert (-not $hostProcess.HasExited) 'restarted OBS remains running'
+        Assert (((Get-FileHash "$root/obs-plugins/64bit/obs-streambridge.dll").Hash) -eq $oldPlugin) 'restarted OBS prevents writes despite missing original PID'
+        Assert (-not $installerProcess.HasExited) 'installer waits for destination files to be released'
+        Set-Content -LiteralPath $control 'exit'
+        Assert ($hostProcess.WaitForExit(10000)) 'restarted host exits normally'
+        Assert ($installerProcess.WaitForExit(90000)) 'installer completes after restarted host closes'
+        Assert ((Get-Content "$download/update-result.ini" -Raw) -match 'Status=success') 'restarted-host update succeeds'
+        Assert (((Get-FileHash "$config/vault.dpapi").Hash) -eq $before) 'restarted-host update preserves credentials'
+        Write-Output "Updater test fixture retained at $fixture"
+        return
+    }
+    if ($ImmediateExit) {
+        Set-Content -LiteralPath $control 'launch'
+        Wait-Until { Test-Path -LiteralPath $result } 'Native launcher did not report'
+        Assert ((Get-Content -LiteralPath $result -Raw).Trim() -eq 'launched') 'production launcher accepts installer'
+        Set-Content -LiteralPath $control 'exit'
+        Assert ($hostProcess.WaitForExit(10000)) 'host closes immediately without waiting for installer acknowledgement'
+        $hostProcess.Dispose()
+        $hostProcess = $null
+        Wait-Until { (Test-Path "$download/update-result.ini") -and (Get-Content "$download/update-result.ini" -Raw) -match 'Status=(success|failed)' } 'Immediate-exit update did not finish' 90
+        Assert ((Get-Content "$download/update-result.ini" -Raw) -match 'Status=success') 'update succeeds even when OBS exits before installer initialization'
+        Assert (((Get-FileHash "$root/obs-plugins/64bit/obs-streambridge.dll").Hash) -ne $oldPlugin) 'immediate-exit update replaces plugin'
+        Assert (((Get-FileHash "$config/vault.dpapi").Hash) -eq $before) 'immediate-exit update preserves credentials'
+        Write-Output "Updater test fixture retained at $fixture"
+        return
+    }
     $created = $hostProcess.StartTime.ToUniversalTime().ToFileTimeUtc()
     $wrong = Start-Process -FilePath "$download/setup.exe" -ArgumentList "/S /UPDATEPID=$($hostProcess.Id) /UPDATECREATED=1 /D=$root" -WindowStyle Hidden -PassThru -Wait
     Assert ($wrong.ExitCode -eq 2) 'reused or mismatched process identity rejected'
@@ -63,7 +100,7 @@ try {
     Assert (Test-Path "$config/vault.dpapi") 'cleanup uninstall preserves configuration'
 } finally {
     try { Set-Content -LiteralPath $control 'exit' } catch { Write-Warning 'Could not signal fixture exit' }
-    if (-not $hostProcess.HasExited -and -not $hostProcess.WaitForExit(5000)) {
+    if ($hostProcess -and -not $hostProcess.HasExited -and -not $hostProcess.WaitForExit(5000)) {
         if ($hostProcess.Path -eq "$root\bin\64bit\obs64.exe") { Stop-Process -Id $hostProcess.Id }
     }
 }

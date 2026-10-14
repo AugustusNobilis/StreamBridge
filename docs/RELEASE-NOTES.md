@@ -1,18 +1,18 @@
-# StreamBridge 0.2.0 — development preview
+# StreamBridge 0.2.1 — setup help and updater fix
 
-Русский: добавлены счётчики зрителей с иконкой глаза, общий чат YouTube/Twitch со значками площадок и действиями модератора, отдельная докпанель названия/категории/описания. Упрощены вкладки подключения: выбор сервера, показ ключа, заметная привязка аккаунта и раскрываемая настройка Client ID. Новая прокручиваемая «Помощь», версии во вкладке обновлений, авторство и выбор языка RU/EN.
+Русский: исправлено обновление при быстром закрытии OBS. Раньше установщик мог завершить распаковку после выхода OBS и ошибочно отклонить обновление. Проверки занятых файлов, папки установки и прав сохранены.
 
-Для обновления скачайте updater.exe этого релиза: он обновляет старую установленную версию до 0.2.0 с сохранением настроек. Либо используйте встроенные обновления, включив предварительные версии. Закройте OBS обычным способом, когда обновлятор попросит.
+На вкладках YouTube и Twitch появилась кнопка пошаговой инструкции. Инструкции встроены в плагин, работают без интернета и доступны на русском и английском.
 
-English: viewer eye badges, combined YouTube/Twitch chat with platform icons and moderation, and a separate stream information dock. Simplified connection settings, scrollable Help, installed/latest version labels, author link and Russian/English language selection.
+- [YouTube: Google Cloud, тестировщики и ошибка 403](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.ru.md).
+- [Twitch: поля регистрации, Public и вход по коду](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.ru.md).
 
-Use this release's updater.exe to migrate an older installation to 0.2.0, or enable preview releases in StreamBridge's Updates tab. Settings are preserved.
+Для обновления используйте **updater.exe из этого релиза**, либо встроенные обновления с включённым получением предварительных версий. Автозагрузка только скачивает пакет: после её окончания нажмите **Установить после закрытия OBS** и закройте OBS. Настройки и ключи сохраняются.
 
-Known limits:
-- Real-account OAuth/chat/moderation acceptance needs registered Google Desktop and Twitch Public Client IDs, which are not bundled. Older accounts need reconnecting to grant new permissions.
-- Go-live notification text is a local copyable draft: the public APIs do not provide that separate setting. YouTube description is published.
-- YouTube chat polling consumes API quota. No outgoing chat composer.
-- Language selection takes effect after restarting OBS.
-- Unsigned Windows x64 preview, built for OBS 32 / Qt 6.8. Windows 11 and hardware encoder acceptance remain separate checks.
+English: fixes installation when OBS exits before the compressed updater initializes. Destination, permissions and in-use-file checks remain active. Adds offline step-by-step YouTube and Twitch guides in both languages beside the account buttons.
+
+Use this release's **updater.exe**, or enable preview releases and click **Install after OBS closes** after downloading through the plugin. Automatic downloads do not schedule installation on their own. Settings and credentials are preserved.
+
+Known limits: registered Google Desktop/Twitch Public Client IDs are still required for account features. Real-account consent and moderation acceptance have not been completed in the development environment. Google Testing sessions for YouTube scopes expire after seven days. The release is an unsigned Windows x64 preview for OBS 32 / Qt 6.8.
 
 The official version is free; GPL-2.0-or-later and third-party license obligations remain unchanged. Author: [AugustusNobilis](https://github.com/AugustusNobilis).

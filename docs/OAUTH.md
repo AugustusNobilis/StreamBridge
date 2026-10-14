@@ -1,5 +1,7 @@
 # OAuth account integration
 
+Step-by-step user guides: **[YouTube — Русский](YOUTUBE-SETUP.ru.md)** · [YouTube — English](YOUTUBE-SETUP.en.md) · **[Twitch — Русский](TWITCH-SETUP.ru.md)** · [Twitch — English](TWITCH-SETUP.en.md). The same guides are available offline from each platform's settings tab.
+
 Manual RTMPS requires no developer application, API key, relay, or OAuth server. Account buttons now execute asynchronous provider flows. No distributor client IDs are bundled: enter your registered public/desktop client ID in the platform tab, then Connect. Never enter a confidential client secret. End-to-end provider consent has not been tested with registered clients in this environment.
 
 Protocol tests use mock provider responses and a real TCP loopback callback. Executed tests cover PKCE's RFC vector, rejected state injection, cancellation, Twitch polling/slow-down, authorized broadcaster selection, DPAPI persistence, refresh rotation, revoked tokens, YouTube selection and unbound streams, and revocation failure reporting. They do not replace real-account acceptance.

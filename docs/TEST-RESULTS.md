@@ -1,5 +1,15 @@
 # Executed validation
 
+## Platform docks 0.2.0 / 2026-10-14
+
+Nine local CTest suites passed: core, bootstrap, security, OAuth, platforms, proxy, updates, browser settings and UI. Platform fixtures cover selected-broadcast authentication, unavailable/zero/positive viewer counts, YouTube metadata preservation, exact moderation targets and failed operations, duplicate chat IDs, provider polling delay, chat disable during a request and stale responses after disconnect. Twitch metadata and moderation requests use synthetic HTTP replies; the IRC parser is tested independently.
+
+Production Qt widgets were rendered in Russian and English with synthetic chat content, using the Windows Qt driver without showing test windows. Reviewed screenshots cover narrow docks, both eye badge colors, plain-text chat messages, server/account setup, Help, Updates and About. The UI suite also checks the 500-message bound and targeted local removal. Evidence: build/ui-review and build/tests-0.2.0.log. These images are fixture previews, not evidence of real platform messages.
+
+A dedicated portable OBS 32.1.2 loaded all three production docks and the browser source. The existing frontend coexistence test passed start/stop independence and normal OBS shutdown with outputs active. Its primary stream uses a real loopback RTMP endpoint; secondary outputs are instrumented local sinks. Evidence: build/frontend-0.2.0.log. This run did not transmit to YouTube or Twitch.
+
+Real Google/Twitch application consent, live platform viewer/chat reception, successful platform moderation, and go-live notification editing in platform dashboards remain untested. No Client IDs were supplied. Registered Google Desktop / Twitch Public applications and account-owner acceptance are required. No certificates or system trust settings were changed for this milestone. Windows 11, SmartScreen/UAC interaction and hardware encoders retain their separate acceptance requirements.
+
 ## Updater 0.1.2 / 2026-10-14
 
 The standalone bootstrap has separate tests for the fixed release, draft/duplicate/wrong-origin/oversized metadata, unsafe redirects, and missing/truncated/modified payloads using a known SHA-256 vector. The release validation artifact records the live download/install results after publication. Visual UI acceptance and protected-folder UAC remain separate manual checks.

@@ -1,6 +1,6 @@
 param([string]$Updater = "$PSScriptRoot/../dist/updater.exe",
       [string]$HostExecutable = "$PSScriptRoot/../build/Release/update-host-fixture.exe")
-# Requires the public v0.1.2 release. Never modifies the user's installed OBS.
+# Requires the public v0.2.0 release. Never modifies the user's installed OBS.
 $ErrorActionPreference = 'Stop'
 $workspace = (Resolve-Path "$PSScriptRoot/..").Path
 $fixture = [IO.Path]::GetFullPath((Join-Path $workspace ('.deps/bootstrap-test-' + [Guid]::NewGuid().ToString('N'))))
@@ -48,7 +48,7 @@ try {
                 $deadline = [DateTime]::UtcNow.AddMinutes(5)
                 $waiting = $false
                 while ([DateTime]::UtcNow -lt $deadline -and -not $update.HasExited) {
-                    $children = Get-CimInstance Win32_Process -Filter "Name='obs-streambridge-0.1.2-windows-x64-setup.exe'" |
+                    $children = Get-CimInstance Win32_Process -Filter "Name='obs-streambridge-0.2.0-windows-x64-setup.exe'" |
                         Where-Object { $_.CommandLine -like "*$root*" }
                     foreach ($child in $children) {
                         $status = Join-Path ([IO.Path]::GetDirectoryName($child.ExecutablePath)) 'update-result.ini'
@@ -65,7 +65,7 @@ try {
             }
             Assert ($update.WaitForExit(600000)) "upgrade from $oldVersion completes"
             Assert ($update.ExitCode -eq 0) "upgrade from $oldVersion returns success"
-            Assert ((Get-Content "$root/data/obs-plugins/obs-streambridge/package.ini" -Raw) -match 'Version=0.1.2') 'target version installed'
+            Assert ((Get-Content "$root/data/obs-plugins/obs-streambridge/package.ini" -Raw) -match 'Version=0.2.0') 'target version installed'
             Assert ((Get-FileHash "$root/obs-plugins/64bit/obs-streambridge.dll").Hash -eq (Get-FileHash "$workspace/build/Release/obs-streambridge.dll").Hash) 'installed plugin equals released build'
             Assert ((Get-FileHash "$config/vault.dpapi").Hash -eq $before) 'credentials preserved byte for byte'
             Assert (Test-Path "$root/data/obs-plugins/obs-streambridge/qt-plugins/tls/qschannelbackend.dll") 'HTTPS backend installed'

@@ -3,7 +3,9 @@
 #include <QString>
 #include <obs-module.h>
 namespace sb {
-inline QString text(const char *key) {
-    return QString::fromUtf8(obs_module_text(key));
-}
+QString text(const char *key);
+void initializeLocale(const QString &directory);
+void shutdownLocale();
+QString language();
+bool setLanguage(const QString &language);
 } // namespace sb

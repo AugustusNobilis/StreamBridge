@@ -3,6 +3,7 @@
 #include "stream/output-manager.hpp"
 #include "ui/dock.hpp"
 #include "ui/locale.hpp"
+#include "ui/platform-docks.hpp"
 #include "updates/checker.hpp"
 #include <QAction>
 #include <QCoreApplication>
@@ -21,16 +22,20 @@ MODULE_EXPORT const char *obs_module_name(void) {
     return "StreamBridge";
 }
 MODULE_EXPORT const char *obs_module_author(void) {
-    return "StreamBridge contributors";
+    return "AugustusNobilis and StreamBridge contributors";
 }
 
 static std::unique_ptr<sb::OutputManager> manager;
 static QPointer<sb::Dock> dock;
+static std::unique_ptr<sb::PlatformHub> hub;
+static QPointer<QWidget> chatDock, infoDock;
 static QPointer<QAction> menu;
 static bool exited = false;
 static void frontendEvent(enum obs_frontend_event event, void *) {
     if (event == OBS_FRONTEND_EVENT_EXIT) {
         exited = true;
+        if (hub)
+            hub->shutdown();
         if (manager)
             manager->shutdown();
         sb::shutdownUpdates();
@@ -53,14 +58,26 @@ void obs_module_post_load(void) {
     if (!path)
         return;
     manager = std::make_unique<sb::OutputManager>(QString::fromUtf8(path));
+    sb::initializeLocale(QString::fromUtf8(path));
+    hub = std::make_unique<sb::PlatformHub>(manager->account(0), manager->account(1));
+    infoDock = sb::createInfoDock(*hub, QString::fromUtf8(path));
     sb::initializeUpdates(QString::fromUtf8(path));
     bfree(path);
-    dock = new sb::Dock(*manager);
+    dock = new sb::Dock(*manager, *hub);
     if (!obs_frontend_add_dock_by_id("streambridge", "StreamBridge", dock)) {
         delete dock;
+        delete infoDock;
+        hub.reset();
         manager.reset();
         return;
     }
+    chatDock = sb::createChatDock(*hub);
+    if (!obs_frontend_add_dock_by_id("streambridge-chat", sb::text("ChatDockTitle").toUtf8().constData(),
+                                     chatDock))
+        delete chatDock;
+    if (!obs_frontend_add_dock_by_id("streambridge-info", sb::text("InfoDockTitle").toUtf8().constData(),
+                                     infoDock))
+        delete infoDock;
     menu = static_cast<QAction *>(
         obs_frontend_add_tools_menu_qaction(sb::text("Settings").toUtf8().constData()));
     QObject::connect(menu, &QAction::triggered, dock, &sb::Dock::openSettings);
@@ -68,14 +85,22 @@ void obs_module_post_load(void) {
     blog(LOG_INFO, "[StreamBridge] %s loaded", STREAMBRIDGE_VERSION);
 }
 void obs_module_unload(void) {
+    if (hub)
+        hub->shutdown();
     if (!exited)
         obs_frontend_remove_event_callback(frontendEvent, nullptr);
     if (manager)
         manager->shutdown();
     if (!exited && dock)
         obs_frontend_remove_dock("streambridge");
+    if (!exited && chatDock)
+        obs_frontend_remove_dock("streambridge-chat");
+    if (!exited && infoDock)
+        obs_frontend_remove_dock("streambridge-info");
     if (menu)
         delete menu;
+    hub.reset();
     manager.reset();
     sb::shutdownUpdates();
+    sb::shutdownLocale();
 }

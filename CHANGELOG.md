@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 — platform docks and interface, 2026-10-14
+
+- Add viewer eye badges with unknown/zero/positive states.
+- Add combined native chat, platform icons and permission-aware message deletion/permanent bans.
+- Add title/category editing, YouTube descriptions and local notification drafts.
+- Expand OAuth permissions, persist the selected YouTube broadcast and preserve unrelated video metadata during updates.
+- Simplify platform setup; merge help/security/proxy guidance; display installed/latest versions and add a plugin language selector.
+- Add author attribution, retain GPL, and rewrite the README in Russian and English.
+- Update the standalone bootstrapper target to 0.2.0 without changing published older release files.
+- Add protocol, API and native widget regression tests. Real-account acceptance remains pending.
+
 ## 0.1.2 — GitHub in-place updates, 2026-10-14
 
 - Provide a standalone `updater.exe` for 0.1.0/0.1.1 → 0.1.2, using native Windows HTTPS and SHA-256 without external runtime DLLs.

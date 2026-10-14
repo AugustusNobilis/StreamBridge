@@ -121,10 +121,15 @@ int main(int argc, char **argv) {
                          });
         twitch.link("public-client");
         auto device = twitchHttp.take();
-        require(device.post && device.url.path() == "/oauth2/device" &&
-                    device.form.queryItemValue("scopes") == "channel:read:stream_key" &&
-                    !device.form.hasQueryItem("client_secret"),
-                "Twitch documented public device flow and scope");
+        require(
+            device.post && device.url.path() == "/oauth2/device" &&
+                device.form.queryItemValue("scopes").split(' ').contains("channel:read:stream_key") &&
+                device.form.queryItemValue("scopes").split(' ').contains("channel:manage:broadcast") &&
+                device.form.queryItemValue("scopes").split(' ').contains("moderator:manage:chat_messages") &&
+                device.form.queryItemValue("scopes").split(' ').contains("moderator:manage:banned_users") &&
+                device.form.queryItemValue("scopes").split(' ').contains("chat:read") &&
+                !device.form.hasQueryItem("client_secret"),
+            "Twitch documented public device flow and scope");
         device.callback({200,
                          {{"device_code", "fixture-device"},
                           {"expires_in", 120},

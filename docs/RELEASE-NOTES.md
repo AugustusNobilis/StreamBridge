@@ -1,23 +1,18 @@
-# StreamBridge 0.1.2 development preview
+# StreamBridge 0.2.0 — development preview
 
-This preview adds updates from GitHub Releases: optional daily checks/background download, SHA-256 verification and installation after OBS closes, with configuration preserved. In Settings → Updates, enable preview releases to receive development builds. The installer permissions/Unicode fixes from 0.1.1 are included.
+Русский: добавлены счётчики зрителей с иконкой глаза, общий чат YouTube/Twitch со значками площадок и действиями модератора, отдельная докпанель названия/категории/описания. Упрощены вкладки подключения: выбор сервера, показ ключа, заметная привязка аккаунта и раскрываемая настройка Client ID. Новая прокручиваемая «Помощь», версии во вкладке обновлений, авторство и выбор языка RU/EN.
 
-**Для обновления 0.1.0/0.1.1 скачайте `updater.exe` из файлов релиза.** Запустите, проверьте папку OBS и нажмите «Обновить до 0.1.2». Закройте OBS, когда обновлятор попросит; после сообщения об успехе запустите OBS снова. Настройки и ключи сохраняются. Git и дополнительные DLL не нужны, интернет нужен. Следующие версии можно устанавливать из настроек StreamBridge.
+Для обновления скачайте updater.exe этого релиза: он обновляет старую установленную версию до 0.2.0 с сохранением настроек. Либо используйте встроенные обновления, включив предварительные версии. Закройте OBS обычным способом, когда обновлятор попросит.
 
-The standalone updater uses Windows WinHTTP and a static runtime. The plugin includes Qt's Schannel backend so HTTPS works with ordinary OBS installations without the developer SDK. The two Qt source/recipe archives are for source compliance; end users need only `updater.exe` or the full setup EXE.
+English: viewer eye badges, combined YouTube/Twitch chat with platform icons and moderation, and a separate stream information dock. Simplified connection settings, scrollable Help, installed/latest version labels, author link and Russian/English language selection.
 
-Native OBS 32+ multistream and isolated proxy browser implementation. Two direct RTMPS outputs share owned encoders or use independent profiles. The browser renders transparent video and audio through HTTP CONNECT, HTTPS CONNECT or authenticated SOCKS5 TCP. Credentials use Windows DPAPI.
+Use this release's updater.exe to migrate an older installation to 0.2.0, or enable preview releases in StreamBridge's Updates tab. Settings are preserved.
 
-Local real RTMPS, HTTPS/WSS and installer tests are recorded in TEST-RESULTS.md. OAuth protocol tests use mock providers. The binaries are unsigned. Use checksums, review the source and retain CEF/Chromium notices.
+Known limits:
+- Real-account OAuth/chat/moderation acceptance needs registered Google Desktop and Twitch Public Client IDs, which are not bundled. Older accounts need reconnecting to grant new permissions.
+- Go-live notification text is a local copyable draft: the public APIs do not provide that separate setting. YouTube description is published.
+- YouTube chat polling consumes API quota. No outgoing chat composer.
+- Language selection takes effect after restarting OBS.
+- Unsigned Windows x64 preview, built for OBS 32 / Qt 6.8. Windows 11 and hardware encoder acceptance remain separate checks.
 
-## Before publishing a stable release
-
-- Run clean checkout CI on the real repository and attach matching source, EXE, ZIP and SHA-256 checksums.
-- Validate Google/Twitch consent and refresh with registered clients; no private secret may enter the binary.
-- Exercise a real DonationAlerts test alert, transparent video and audio, plus different public egress IPs for normal and proxied OBS sources.
-- Capture process-attributed DNS/DoH/IPv6/QUIC/UDP traffic during success, proxy refusal and recovery.
-- Complete manual UI acceptance. Official frontend Start/Stop coexistence and active OBS exit passed the local test module; see TEST-RESULTS.md for its exact transport boundaries.
-- Validate Windows 11 and available NVENC/AMF/QSV hardware, prolonged A/V sync and load.
-- Review distribution/source obligations for exact dependencies. Private vulnerability reporting is enabled.
-
-This preview does not claim those pending gates passed.
+The official version is free; GPL-2.0-or-later and third-party license obligations remain unchanged. Author: [AugustusNobilis](https://github.com/AugustusNobilis).

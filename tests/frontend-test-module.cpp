@@ -2,6 +2,7 @@
 // Explicit opt-in test-only module, never installed or packaged. Uses local synthetic media only.
 #include "stream/output-manager.hpp"
 #include <QApplication>
+#include <QDockWidget>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QTemporaryDir>
@@ -151,6 +152,14 @@ void tick() {
     }
 }
 void start() {
+    auto *window = static_cast<QWidget *>(obs_frontend_get_main_window());
+    for (const auto *id : {"streambridge", "streambridge-chat", "streambridge-info"}) {
+        if (!window->findChild<QDockWidget *>(id)) {
+            finish(false, "production StreamBridge dock missing");
+            return;
+        }
+    }
+    report("PASS: all three production StreamBridge docks registered in OBS");
     auto *browserSource =
         obs_source_create_private("streambridge_browser", "Unconfigured browser lifecycle test", nullptr);
     if (!browserSource) {

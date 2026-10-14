@@ -6,7 +6,21 @@
 
 namespace sb {
 static const QString twitchScope = "channel:read:stream_key";
-static const QString youtubeScope = "https://www.googleapis.com/auth/youtube.readonly";
+static const QString twitchScopes = "channel:read:stream_key channel:manage:broadcast chat:read "
+                                    "moderator:manage:chat_messages moderator:manage:banned_users";
+static const QString youtubeScope = "https://www.googleapis.com/auth/youtube.force-ssl";
+QByteArray OAuthAccount::accessToken() const {
+    return tokens_.value("expires_at").toInteger() > QDateTime::currentSecsSinceEpoch() + 30
+               ? tokens_.value("access_token").toString().toUtf8()
+               : QByteArray();
+}
+bool OAuthAccount::persist() {
+    QString error;
+    auto bytes = QJsonDocument(tokens_).toJson(QJsonDocument::Compact);
+    const bool saved = store_.put(vaultKey(), bytes, error);
+    bytes.fill('\0');
+    return saved;
+}
 OAuthAccount::OAuthAccount(Provider provider, SecretStore &store, QObject *parent, HttpClient *transport)
     : QObject(parent), provider_(provider), store_(store), http_(transport ? transport : new OAuthHttp(this)),
       loopback_(this), poll_(this), maintenance_(this) {
@@ -168,7 +182,7 @@ void OAuthAccount::link(const QString &clientId) {
     }
     QUrlQuery form;
     form.addQueryItem("client_id", clientId_);
-    form.addQueryItem("scopes", twitchScope);
+    form.addQueryItem("scopes", twitchScopes);
     request(QUrl("https://id.twitch.tv/oauth2/device"), form, true, false, [this](HttpResult result) {
         if (!result.ok()) {
             fail("OAuthTokenFailed");
@@ -201,7 +215,7 @@ void OAuthAccount::pollDevice() {
     }
     QUrlQuery form;
     form.addQueryItem("client_id", clientId_);
-    form.addQueryItem("scopes", twitchScope);
+    form.addQueryItem("scopes", twitchScopes);
     form.addQueryItem("device_code", QString::fromUtf8(deviceCode_));
     form.addQueryItem("grant_type", "urn:ietf:params:oauth:grant-type:device_code");
     request(tokenUrl(), form, true, false, [this](HttpResult result) {
@@ -234,10 +248,18 @@ bool OAuthAccount::saveTokens(const QJsonObject &json) {
     }
     // A single encrypted JSON entry makes refresh-token rotation atomic.
     QJsonObject next{{"client_id", clientId_},
+                     {"user_id", tokens_.value("user_id")},
+                     {"broadcast_id", tokens_.value("broadcast_id")},
+                     {"scopes", tokens_.value("scopes")},
                      {"access_token", access},
                      {"refresh_token", refresh},
                      {"expires_at", QDateTime::currentSecsSinceEpoch() + expires},
                      {"label", label_}};
+    if (json.value("scope").isString())
+        next["scopes"] =
+            QJsonArray::fromStringList(json.value("scope").toString().split(' ', Qt::SkipEmptyParts));
+    else if (json.value("scope").isArray())
+        next["scopes"] = json.value("scope");
     QString error;
     auto bytes = QJsonDocument(next).toJson(QJsonDocument::Compact);
     const bool saved = store_.put(vaultKey(), bytes, error);
@@ -310,6 +332,13 @@ void OAuthAccount::validateTwitch(bool fetchKey) {
                 return;
             }
             label_ = result.json.value("login").toString();
+            tokens_["label"] = label_;
+            tokens_["user_id"] = user;
+            tokens_["scopes"] = result.json.value("scopes");
+            if (!persist()) {
+                fail("OAuthVaultFailed");
+                return;
+            }
             setStatus("OAuthConnected");
             armMaintenance();
             if (!fetchKey)
@@ -408,13 +437,13 @@ void OAuthAccount::selectBroadcast(const QString &id) {
         return;
     }
     const auto streamId = it->streamId;
-    withAccess([this, streamId] {
+    withAccess([this, streamId, id] {
         QUrl url("https://www.googleapis.com/youtube/v3/liveStreams");
         QUrlQuery query;
         query.addQueryItem("part", "cdn");
         query.addQueryItem("id", streamId);
         url.setQuery(query);
-        request(url, {}, false, true, [this](HttpResult result) {
+        request(url, {}, false, true, [this, id](HttpResult result) {
             if (result.status == 401) {
                 expireSession();
                 return;
@@ -436,6 +465,12 @@ void OAuthAccount::selectBroadcast(const QString &id) {
             }
             setStatus("OAuthConnected");
             armMaintenance();
+            tokens_["broadcast_id"] = id;
+            if (!persist()) {
+                fail("OAuthVaultFailed");
+                return;
+            }
+            emit changed();
             emit ingestReady(server, key);
         });
     });

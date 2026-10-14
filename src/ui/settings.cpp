@@ -9,6 +9,7 @@
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -148,12 +149,53 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
     for (size_t i = 0; i < 2; ++i) {
         auto *page = new QWidget(tabs);
         auto *form = new QFormLayout(page);
+        form->setRowWrapPolicy(QFormLayout::WrapLongRows);
         servers[i] = new QLineEdit(manager.config().endpoints[i].server, page);
-        form->addRow(text("Server"), servers[i]);
+        auto *serverList = new QComboBox(page);
+        if (i == 0) {
+            serverList->addItem(text("YouTubePrimary"), "rtmps://a.rtmps.youtube.com:443/live2");
+            serverList->addItem(text("YouTubeBackup"), "rtmps://b.rtmps.youtube.com:443/live2?backup=1");
+        } else
+            serverList->addItem(text("TwitchAutomatic"), "rtmps://live.twitch.tv:443/app");
+        serverList->addItem(text("CustomServer"), QString());
+        form->addRow(text("Server"), serverList);
+        form->addRow(servers[i]);
+        const auto chooseServer = [editor = servers[i], serverList] {
+            const auto url = serverList->currentData().toString();
+            editor->setVisible(url.isEmpty());
+            if (!url.isEmpty())
+                editor->setText(url);
+        };
+        int currentServer = serverList->findData(servers[i]->text());
+        serverList->setCurrentIndex(currentServer >= 0 ? currentServer : serverList->count() - 1);
+        chooseServer();
+        connect(serverList, &QComboBox::currentIndexChanged, page, chooseServer);
         auto *key = new QLineEdit(page);
         key->setEchoMode(QLineEdit::Password);
         key->setPlaceholderText(text("KeyHint"));
-        form->addRow(text("StreamKey"), key);
+        key->setMaxLength(8192);
+        auto *keyRow = new QHBoxLayout;
+        keyRow->addWidget(key);
+        auto *reveal = new QPushButton(text("ShowKey"), page);
+        reveal->setCheckable(true);
+        keyRow->addWidget(reveal);
+        form->addRow(text("StreamKey"), keyRow);
+        connect(reveal, &QPushButton::toggled, page, [&, key, reveal, i](bool show) {
+            if (show && key->text().isEmpty()) {
+                QString error;
+                auto bytes = manager.secrets().get(endpointName(i) + "/stream-key", error);
+                key->setText(QString::fromUtf8(bytes));
+                bytes.fill('\0');
+            }
+            key->setEchoMode(show ? QLineEdit::Normal : QLineEdit::Password);
+            reveal->setText(text(show ? "HideKey" : "ShowKey"));
+        });
+        auto *getKey = new QPushButton(text("GetStreamKey"), page);
+        form->addRow(getKey);
+        connect(getKey, &QPushButton::clicked, page, [i] {
+            QDesktopServices::openUrl(
+                QUrl(i == 0 ? "https://studio.youtube.com/" : "https://dashboard.twitch.tv/settings/stream"));
+        });
         auto *save = new QPushButton(text("SaveKey"), page);
         form->addRow(save);
         auto *remove = new QPushButton(text("DeleteKey"), page);
@@ -177,7 +219,7 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
                 key->clear();
             feedback->setText(ok ? text("KeySaved") : error);
         });
-        connect(remove, &QPushButton::clicked, page, [&, feedback, i] {
+        connect(remove, &QPushButton::clicked, page, [&, feedback, key, i] {
             if (manager.busy()) {
                 feedback->setText(text("StopFirst"));
                 return;
@@ -185,15 +227,22 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
             QString error;
             feedback->setText(
                 manager.secrets().erase(endpointName(i) + "/stream-key", error) ? text("KeyDeleted") : error);
+            key->clear();
         });
         form->addRow(accountPanel(manager, i, page));
         connect(&manager.account(i), &OAuthAccount::ingestReady, page,
-                [&, editor = servers[i], i](const QString &server, const QByteArray &) {
-                    if (manager.config().endpoints[i].server == server)
+                [&, editor = servers[i], serverList, i](const QString &server, const QByteArray &) {
+                    if (manager.config().endpoints[i].server == server) {
+                        const auto found = serverList->findData(server);
+                        serverList->setCurrentIndex(found >= 0 ? found : serverList->count() - 1);
                         editor->setText(server);
+                    }
                 });
         page->setEnabled(!manager.busy());
-        tabs->addTab(page, endpointName(i));
+        auto *scroll = new QScrollArea(tabs);
+        scroll->setWidgetResizable(true);
+        scroll->setWidget(page);
+        tabs->addTab(scroll, endpointName(i));
     }
     auto *encoding = new QWidget(tabs);
     auto *encLayout = new QVBoxLayout(encoding);
@@ -226,10 +275,12 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
         auto *v = new QVBoxLayout(page);
         v->addWidget(note(text(message), page));
         v->addStretch();
-        tabs->addTab(page, text(title));
+        auto *scroll = new QScrollArea(tabs);
+        scroll->setWidgetResizable(true);
+        scroll->setWidget(page);
+        tabs->addTab(scroll, text(title));
     };
-    infoTab("Proxy", "ProxyDetails");
-    infoTab("Security", "SecurityDetails");
+    infoTab("Help", "HelpDetails");
     auto *logsPage = new QWidget(tabs);
     auto *logsLayout = new QVBoxLayout(logsPage);
     auto *logs = new QPlainTextEdit(manager.diagnostics().join('\n'), logsPage);
@@ -250,6 +301,9 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
     tabs->addTab(logsPage, text("Logs"));
     auto *updates = new QWidget(tabs);
     auto *updateLayout = new QVBoxLayout(updates);
+    updateLayout->addWidget(note(text("LocalVersion").arg(STREAMBRIDGE_VERSION), updates));
+    auto *latestVersion = note(text("LatestVersion").arg(text("VersionUnchecked")), updates);
+    updateLayout->addWidget(latestVersion);
     updateLayout->addWidget(note(text("UpdateDisclosure"), updates));
     if (auto *checker = updateChecker()) {
         auto *repository = new QLineEdit(checker->repository(), updates);
@@ -306,6 +360,9 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
                 QDesktopServices::openUrl(checker->releaseUrl());
         });
         const auto refreshUpdate = [=] {
+            latestVersion->setText(
+                text("LatestVersion")
+                    .arg(checker->version().isEmpty() ? text("VersionUnchecked") : checker->version()));
             QString message = text(checker->state().toUtf8().constData());
             if (!checker->version().isEmpty())
                 message += "\n" + text("UpdateVersion").arg(checker->version());
@@ -332,10 +389,37 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
     updatesScroll->setWidgetResizable(true);
     updatesScroll->setWidget(updates);
     tabs->addTab(updatesScroll, text("Updates"));
-    infoTab("About", "AboutDetails");
+    auto *about = new QWidget(tabs);
+    auto *aboutLayout = new QVBoxLayout(about);
+    aboutLayout->addWidget(note(text("AboutSummary"), about));
+    auto *author = new QLabel(about);
+    author->setText(text("Author") + " <a href=\"https://github.com/AugustusNobilis\">AugustusNobilis</a>");
+    author->setOpenExternalLinks(true);
+    aboutLayout->addWidget(author);
+    aboutLayout->addWidget(note(text("AboutLicense"), about));
+    auto *languages = new QComboBox(about);
+    languages->addItem(text("LanguageOBS"), QString());
+    languages->addItem("Русский", "ru-RU");
+    languages->addItem("English", "en-US");
+    languages->setCurrentIndex(languages->findData(language()));
+    aboutLayout->addWidget(note(text("Language"), about));
+    aboutLayout->addWidget(languages);
+    auto *languageHint = note(text("LanguageRestart"), about);
+    aboutLayout->addWidget(languageHint);
+    connect(languages, &QComboBox::activated, about, [languages, languageHint] {
+        languageHint->setText(
+            text(setLanguage(languages->currentData().toString()) ? "LanguageRestart" : "SaveFailed"));
+    });
+    aboutLayout->addStretch();
+    auto *aboutScroll = new QScrollArea(tabs);
+    aboutScroll->setWidgetResizable(true);
+    aboutScroll->setWidget(about);
+    tabs->addTab(aboutScroll, text("About"));
     if (manager.busy())
         layout->addWidget(note(text("StopFirst"), this));
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
+    buttons->button(QDialogButtonBox::Save)->setText(text("SaveSettings"));
+    buttons->button(QDialogButtonBox::Cancel)->setText(text("CancelSettings"));
     buttons->button(QDialogButtonBox::Save)->setEnabled(!manager.busy());
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);

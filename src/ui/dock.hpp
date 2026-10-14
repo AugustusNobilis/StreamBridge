@@ -6,14 +6,17 @@ class QLabel;
 class QPushButton;
 class QComboBox;
 namespace sb {
+class PlatformHub;
+class ViewerBadge;
 class Dock : public QWidget {
   public:
-    explicit Dock(OutputManager &manager, QWidget *parent = nullptr);
+    explicit Dock(OutputManager &manager, PlatformHub &hub, QWidget *parent = nullptr);
     void openSettings();
 
   private:
     void refresh();
     OutputManager &manager_;
+    std::array<ViewerBadge *, 2> viewers_{};
     std::array<QLabel *, 2> status_{};
     std::array<QLabel *, 2> metrics_{};
     std::array<QPushButton *, 2> start_{};

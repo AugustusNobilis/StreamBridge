@@ -2,6 +2,7 @@
 #include "dock.hpp"
 #include "browser/source.hpp"
 #include "locale.hpp"
+#include "platform-docks.hpp"
 #include "settings.hpp"
 #include "updates/checker.hpp"
 #include <QComboBox>
@@ -15,7 +16,7 @@
 #include <QVBoxLayout>
 
 namespace sb {
-Dock::Dock(OutputManager &manager, QWidget *parent) : QWidget(parent), manager_(manager) {
+Dock::Dock(OutputManager &manager, PlatformHub &hub, QWidget *parent) : QWidget(parent), manager_(manager) {
     setMinimumWidth(250);
     auto *layout = new QVBoxLayout(this);
     mode_ = new QComboBox(this);
@@ -30,8 +31,18 @@ Dock::Dock(OutputManager &manager, QWidget *parent) : QWidget(parent), manager_(
         refresh();
     });
     for (size_t i = 0; i < 2; ++i) {
-        auto *box = new QGroupBox(endpointName(i), this);
+        auto *box = new QGroupBox(this);
         auto *v = new QVBoxLayout(box);
+        auto *header = new QHBoxLayout;
+        auto *name = new QLabel(endpointName(i), box);
+        auto font = name->font();
+        font.setBold(true);
+        name->setFont(font);
+        header->addWidget(name);
+        viewers_[i] = new ViewerBadge(box);
+        header->addWidget(viewers_[i]);
+        header->addStretch();
+        v->addLayout(header);
         status_[i] = new QLabel(box);
         status_[i]->setWordWrap(true);
         status_[i]->setTextFormat(Qt::PlainText);
@@ -77,6 +88,10 @@ Dock::Dock(OutputManager &manager, QWidget *parent) : QWidget(parent), manager_(
         refreshUpdate();
     }
     layout->addStretch();
+    connect(&hub, &PlatformHub::changed, this, [this, &hub] {
+        for (int i = 0; i < 2; ++i)
+            viewers_[i]->setCount(hub.info(i).viewers);
+    });
     connect(&manager_, &OutputManager::changed, this, &Dock::refresh);
     refresh();
 }

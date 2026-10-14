@@ -21,6 +21,10 @@ class HttpClient : public QObject {
     virtual void send(const QUrl &url, const QUrlQuery &form, const QByteArray &token,
                       const QByteArray &clientId, bool post, Callback callback) = 0;
     virtual void cancel() = 0;
+    virtual void sendJson(const QUrl &, const QByteArray &, const QJsonObject &, const QByteArray &,
+                          const QByteArray &, Callback callback) {
+        callback({0, {}, true});
+    }
 };
 class OAuthHttp final : public HttpClient {
   public:
@@ -28,8 +32,12 @@ class OAuthHttp final : public HttpClient {
     void send(const QUrl &, const QUrlQuery &, const QByteArray &, const QByteArray &, bool,
               Callback) override;
     void cancel() override;
+    void sendJson(const QUrl &, const QByteArray &, const QJsonObject &, const QByteArray &,
+                  const QByteArray &, Callback) override;
 
   private:
+    void request(const QUrl &, const QByteArray &, const QByteArray &, const QByteArray &, const QByteArray &,
+                 const QByteArray &, Callback);
     QNetworkAccessManager network_;
     QPointer<QNetworkReply> reply_;
 };

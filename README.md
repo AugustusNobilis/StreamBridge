@@ -1,52 +1,64 @@
 # OBS StreamBridge
 
-Native Windows x64 plugin for OBS Studio 32+: two direct RTMPS outputs and a separate proxy browser source. C++20, Qt6, libobs and a sandboxed CEF helper. Russian and English UI. GPL-2.0-or-later source.
+**[Скачать / Download](https://github.com/AugustusNobilis/StreamBridge/releases)** · [Автор / Author](https://github.com/AugustusNobilis) · [GPL-2.0-or-later](LICENSE)
 
-**0.1.2 is a development preview.** Real local RTMPS, CEF HTTPS/WSS/video/audio and installer tests have run. Platform account consent, DonationAlerts acceptance and full network packet audit remain pending. See [executed results](docs/TEST-RESULTS.md) and release validation; compilation is not acceptance.
+## Русский
 
-## Возможности
+Бесплатный плагин для OBS Studio: одновременные независимые трансляции на **YouTube и Twitch**, общий чат и браузерные источники с отдельными прокси. Windows x64, OBS 32 с Qt 6.8.
 
-- Две прямые RTMPS-трансляции: общий H.264/AAC encoder или независимые профили. Отдельные запуск, остановка, состояние и переподключение каждой платформы.
-- Реальные bitrate, dropped frames, время работы и число переподключений. Ограниченный exponential backoff с jitter; максимум 12 повторов.
-- Ручные ключи, Google Desktop OAuth с PKCE и Twitch Public Device Code Flow. Client ID регистрирует владелец приложения; секрет сервера в бинарник не встраивается.
-- Proxied Browser Source: прозрачное видео, JavaScript, WSS, звук, HTTP CONNECT / HTTPS CONNECT / SOCKS5 TCP с авторизацией, отдельный helper на источник.
-- Секреты и URL виджетов шифруются DPAPI. В сцену OBS они не записываются. Системный прокси и маршруты не меняются.
-- EXE-установщик, portable ZIP и проверка GitHub Releases по согласию пользователя.
+### Что умеет
 
-## Install and start
+- Общий энкодер или отдельные настройки качества для каждой площадки; запуск, остановка и переподключение независимо от основной трансляции OBS.
+- Счётчик зрителей с иконкой глаза: серый при 0, приглушённый красный при 1 и больше; «—», если данные недоступны.
+- Докпанель общего чата со значками площадок. Удаление сообщений и бан через правую кнопку при наличии прав.
+- Докпанель названия, категории и описания YouTube. Черновик уведомления можно скопировать в кабинет площадки.
+- Браузерные источники с отдельными SOCKS5 / HTTP CONNECT прокси.
+- Русский и английский интерфейс, зашифрованное хранение ключей, обновления через GitHub без установки Git.
 
-**Уже установлена 0.1.0 или 0.1.1?** Скачайте [updater.exe](https://github.com/AugustusNobilis/StreamBridge/releases/download/v0.1.2/updater.exe), запустите и нажмите **Обновить до 0.1.2**. Он найдёт OBS или предложит выбрать его папку, загрузит проверенный пакет и сохранит настройки. Закройте OBS обычным способом, если обновлятор попросит; дождитесь сообщения об успехе и снова запустите OBS. Для защищённых папок Windows запросит права администратора. Git и дополнительные DLL не нужны. Обновлятор предназначен для Windows x64 и требует интернет.
+### Установка и обновление
 
-1. Close OBS and StreamBridge browser helpers. Use the EXE installer and select the OBS root containing `bin/64bit/obs64.exe`. It checks OBS 32+, x64, files in use and package ownership. For protected folders it requests Windows administrator permission when needed and reopens with the selected path. Writable portable installations do not require elevation. Windows localized folder names and Cyrillic paths are supported.
-2. Start OBS. Open **Docks → StreamBridge** or **Tools → StreamBridge Settings**. Set RTMPS server and encrypted stream key for each destination, then Save. Saving/deleting a key takes effect immediately.
-3. Choose Common or Advanced while both StreamBridge outputs are stopped. Start each destination or Start All. OBS's ordinary streaming settings are separate.
-4. For a widget, add **Proxied Browser Source**, open its configuration and enter the HTTPS widget URL and proxy. Read [Proxy Browser](docs/PROXY-BROWSER.md) for controls and limits.
+1. Скачайте **setup.exe** из [релиза](https://github.com/AugustusNobilis/StreamBridge/releases), закройте OBS и выберите его корневую папку, содержащую `bin/64bit/obs64.exe`. Portable OBS поддерживается.
+2. Уже установлен StreamBridge? Используйте **updater.exe** из релиза 0.2.0 или **Настройки → Обновления**. Для текущих предварительных сборок включите их получение. Настройки и ключи сохранятся.
+3. После установки откройте OBS. В меню **Док-панели** включите StreamBridge, StreamBridge — Чат и StreamBridge — Данные трансляции.
+4. На вкладке YouTube/Twitch выберите сервер, сохраните ключ и настройки — либо привяжите аккаунт. Для чата нажмите **Подключить чат**.
 
-The ZIP contains the same `obs-plugins` and `data` layout. Extract it into a closed OBS installation. Chromium's LPAC sandbox needs read/execute access for SID `S-1-15-2-2` on `data/obs-plugins/obs-streambridge/browser`; the EXE applies this narrowly. For manual ZIP installation, see [Windows build/install instructions](docs/BUILD-WINDOWS.md). Neither package includes OBS itself.
+Установщик не содержит OBS. Для защищённых папок Windows может запросить права администратора. Пакеты пока не подписаны; контрольные суммы находятся в файле SHA256SUMS.txt релиза.
 
-The binaries are unsigned. Windows SmartScreen may warn about an unknown publisher. Verify the source and SHA-256 checksum and follow your Windows security policy; no protection bypass is supplied.
+### Привязка аккаунта
 
-Upgrade with OBS closed. Settings are preserved. The uninstaller under `data/obs-plugins/obs-streambridge/uninstall.exe` preserves settings by default; its explicit removal option also deletes encrypted credentials. Portable mode uses `portable_mode.txt` in the OBS root.
+Для ручного ключа регистрация приложения не нужна. **Для чата, зрителей и редактора нужен OAuth Client ID**: Google типа Desktop или Twitch типа Public. Разверните «Настройка подключения · Client ID» и воспользуйтесь кнопкой регистрации. Затем «Привязать аккаунт» откроет сайт площадки; для Twitch появится код подтверждения.
 
-## Supported limits
+YouTube: включите YouTube Data API v3, разрешите свой аккаунт в тестовых пользователях, создайте трансляцию в Studio, загрузите список в StreamBridge и выберите нужную. Старые подключения нужно переподключить для новых прав. [Подробная настройка OAuth](docs/OAUTH.md).
 
-- Built against OBS 32.0.4 / Qt 6.8.3; exercised on OBS 32.1.2, Windows 10 x64. Other OBS/Qt combinations and Windows 11 need runtime validation. ABI compatibility with every future OBS release is not promised.
-- SDR H.264/NV12 and AAC. Encoder choices depend on modules and hardware actually available in OBS; NVENC/AMF/QSV require separate hardware acceptance. Common mode shares one audio track. Advanced mode supports OBS tracks 1–6.
-- Different FPS uses an integer divisor 1–6 of OBS FPS. Arbitrary combinations such as 60/24 are unavailable. Stop outputs before changing OBS video settings.
-- Browser: HTTPS/WSS only, up to 1920×1080 and 60 FPS, CPU frame transfer. Each source costs a separate Chromium process tree. No performance claim for large numbers of sources.
-- SOCKS5 supports TCP, remote destination DNS and username/password; no UDP ASSOCIATE. Proxy mode blocks QUIC and non-proxied WebRTC. Explicit proxy-off uses direct access.
-- DPAPI credentials remain tied to the current Windows account. Scene export/import does not transfer them. New browser instances must be configured; Add Existing shares an instance.
+**0.2.0 — предварительная версия.** Чат и действия API проверены автоматическими сценариями; вход и модерация на реальных аккаунтах ещё требуют проверки с зарегистрированными Client ID. Чат YouTube расходует квоту API. Отдельный текст уведомления о начале стрима не поддерживается публичными API: в плагине это локальный черновик, а описание YouTube публикуется отдельно. [Возможности и ограничения](docs/PLATFORMS.md).
 
-## Network and updates
+## English
 
-User-started outputs connect directly to the configured RTMPS servers. Configured browser sources connect through their own proxies (or directly when explicitly disabled). Connected OAuth accounts contact provider endpoints for authorization, refresh and Twitch validation. Check External IP explicitly contacts `api.ipify.org`; Test Connection loads the entered widget in a temporary browser. No hidden telemetry or remote control endpoint is implemented.
+A free OBS Studio plugin for independent simultaneous **YouTube and Twitch** streaming, combined chat and browser sources with individual proxies. Windows x64; OBS 32 with Qt 6.8.
 
-Updates use [AugustusNobilis/StreamBridge Releases](https://github.com/AugustusNobilis/StreamBridge/releases). Git is not required on the user's PC. Open **Settings → Updates**, enable automatic checks and (optionally) automatic downloads, then save. Enable **Include published preview releases** to receive the current development previews. Checks happen at most once daily. The repository can be changed for a trusted fork.
+### Features
 
-Click **Install after OBS closes** when a downloaded update is ready. The package is checked against GitHub's SHA-256 digest, then the updater waits for that exact OBS process to finish and updates the existing folder silently. It never closes OBS or stops streams itself. Credentials and settings stay in place; Program Files may require UAC when scheduling. Start OBS again after installation finishes. A failed download can be retried; damaged or incomplete packages are never executed. Versions 0.1.0/0.1.1 can make the initial upgrade using the standalone `updater.exe` above.
+- Shared encoding or separate quality profiles; independent start, stop and reconnect alongside OBS's main stream.
+- Viewer eye badges: grey for zero, muted red for positive counts, a dash when unavailable.
+- Combined chat with platform icons; right-click to delete messages or ban users when authorized.
+- Stream information dock for titles, categories and YouTube descriptions; copyable local go-live notification drafts.
+- Per-source SOCKS5 / HTTP CONNECT browser proxies, encrypted credentials, Russian/English UI and GitHub updates.
 
-## Development
+### Setup
 
-See [Windows build](docs/BUILD-WINDOWS.md), [architecture](docs/ARCHITECTURE.md), [OAuth](docs/OAUTH.md), [security](SECURITY.md), [contributing](CONTRIBUTING.md), [changelog](CHANGELOG.md) and [license inventory](THIRD_PARTY_NOTICES.md). The official OBS plugin template and obs-multi-rtmp were studied; the output implementation is original libobs code. Rationale and primary references are in [FEASIBILITY.md](docs/FEASIBILITY.md).
+1. Download **setup.exe** from [Releases](https://github.com/AugustusNobilis/StreamBridge/releases), close OBS and select its root folder containing `bin/64bit/obs64.exe`. Portable installations are supported.
+2. Existing users can run **updater.exe** from release 0.2.0, or use **Settings → Updates**. Enable preview releases for current development builds. Settings and credentials are preserved.
+3. Enable the StreamBridge, Chat and Stream information panels in OBS's **Docks** menu.
+4. Select a server and save your stream key, or connect an account. Click **Connect chat** in the chat dock.
 
-Maintainers publish a new version tag and its GitHub Release to deliver updates. Ordinary commits and unpublished drafts do not reach users. Complete the release checklist before announcing a stable release.
+For account features, register a **Google Desktop** / **Twitch Public** application and enter its Client ID under Account setup. Connect opens the platform website; Twitch uses a displayed device code. YouTube needs Data API v3 enabled, a permitted test user and an existing selected broadcast. Reconnect older accounts to grant new permissions. [OAuth setup](docs/OAUTH.md).
+
+**0.2.0 is a development preview.** Real-account consent and moderation acceptance are pending registered Client IDs; automated tests use synthetic provider responses. YouTube chat consumes API quota. Separate go-live notification text is not exposed by these public APIs, so that field is a copyable local draft. [Platform behavior and limits](docs/PLATFORMS.md).
+
+## License / Лицензия
+
+Автор / Author: **[AugustusNobilis](https://github.com/AugustusNobilis)** and contributors. The official version is free / официальная версия бесплатна.
+
+**GPL-2.0-or-later**: preserve the license and copyright notices and provide corresponding source code when distributing copies or modifications, as required by the GPL. При распространении сохраняйте лицензию, уведомления об авторстве и предоставляйте соответствующий исходный код на условиях GPL. Third-party components retain their own licenses.
+
+[Build / Сборка](docs/BUILD-WINDOWS.md) · [Proxy browser](docs/PROXY-BROWSER.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Third-party licenses](THIRD_PARTY_NOTICES.md)

@@ -28,6 +28,10 @@ class OAuthAccount final : public QObject {
     bool linked() const { return !tokens_.value("access_token").toString().isEmpty(); }
     QString clientId() const { return tokens_.value("client_id").toString(clientId_); }
     QString label() const { return label_; }
+    QByteArray accessToken() const;
+    QString userId() const { return tokens_.value("user_id").toString(); }
+    QString broadcastId() const { return tokens_.value("broadcast_id").toString(); }
+    bool hasScope(const QString &scope) const { return tokens_.value("scopes").toArray().contains(scope); }
     QString statusKey() const { return status_; }
     const QList<Broadcast> &broadcasts() const { return broadcasts_; }
   signals:
@@ -40,6 +44,7 @@ class OAuthAccount final : public QObject {
     void request(const QUrl &, const QUrlQuery &, bool post, bool authenticated, HttpClient::Callback);
     void fail(const QString &key);
     bool saveTokens(const QJsonObject &json);
+    bool persist();
     void pollDevice();
     void validateTwitch(bool fetchKey);
     void refresh(std::function<void()> continuation);

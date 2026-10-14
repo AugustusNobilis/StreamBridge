@@ -28,6 +28,17 @@ void OAuthHttp::cancel() {
 }
 void OAuthHttp::send(const QUrl &url, const QUrlQuery &form, const QByteArray &token,
                      const QByteArray &clientId, bool post, Callback callback) {
+    request(url, post ? "POST" : "GET", encodeForm(form), "application/x-www-form-urlencoded", token,
+            clientId, std::move(callback));
+}
+void OAuthHttp::sendJson(const QUrl &url, const QByteArray &method, const QJsonObject &json,
+                         const QByteArray &token, const QByteArray &clientId, Callback callback) {
+    request(url, method, json.isEmpty() ? QByteArray() : QJsonDocument(json).toJson(QJsonDocument::Compact),
+            "application/json", token, clientId, std::move(callback));
+}
+void OAuthHttp::request(const QUrl &url, const QByteArray &method, const QByteArray &payload,
+                        const QByteArray &contentType, const QByteArray &token, const QByteArray &clientId,
+                        Callback callback) {
     cancel();
     // Credentials never follow a redirect or go to caller-supplied servers.
     const QStringList hosts{"id.twitch.tv", "api.twitch.tv", "oauth2.googleapis.com", "www.googleapis.com"};
@@ -44,8 +55,8 @@ void OAuthHttp::send(const QUrl &url, const QUrlQuery &form, const QByteArray &t
         request.setRawHeader("Authorization", "Bearer " + token);
     if (!clientId.isEmpty())
         request.setRawHeader("Client-Id", clientId);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    auto *reply = post ? network_.post(request, encodeForm(form)) : network_.get(request);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
+    auto *reply = network_.sendCustomRequest(request, method, payload);
     reply_ = reply;
     reply->setReadBufferSize(1024 * 1024 + 1);
     auto body = std::make_shared<QByteArray>();

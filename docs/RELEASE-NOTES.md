@@ -1,24 +1,28 @@
-# StreamBridge 0.2.4
+# StreamBridge 0.2.5
 
 ## Русский
 
 Предварительная версия для Windows x64 и OBS Studio 32 с Qt 6.8.
 
-- Панель «Данные трансляции» удалена. Начало и завершение эфира YouTube перенесены в основной блок YouTube. Название, описание, категорию и игру меняйте в YouTube Studio.
-- Исправлено сохранение сервера: применение эфира YouTube сохраняет выбранный маршрут, а «Сохранить сервер и ключ» записывает оба значения. Резервный адрес с `backup=1` проходит проверку.
-- Выбранный эфир и его название восстанавливаются после закрытия настроек, перезапуска OBS и обновления OAuth-токена.
-- Чат получает резервный идентификатор из данных эфира. Временные сетевые ошибки повторяются автоматически. Если сохранённый эфир отсутствует или завершён, плагин ищет активный; при неоднозначности просит выбрать вручную. Чат и зрители следуют за выбранным эфиром без замены ключа работающего выхода.
-- Сообщения YouTube имеют полупрозрачный красный фон, Twitch — фиолетовый. Добавлен отключаемый тихий звук: по умолчанию выключен, история не озвучивается, между сигналами не меньше 1,5 секунды.
+- Время потока отображается как **часы:минуты:секунды**, без сброса часов через сутки.
+- Чат получил собственную отрисовку: полупрозрачный красный/фиолетовый фон сохраняется при оформлении OBS, ники выделены жирным и цветом площадки, рядом значки ролей. Клик по нику открывает карточку участника.
+- Поддерживаются смайлики Twitch и глобальные/канальные BetterTTV, включая анимированные GIF. Если сервер картинок недоступен, остаётся текст смайлика. Прямые GIF-ссылки поддерживаются с медиа-серверов Giphy и Tenor; страницы с GIF не встраиваются.
+- Чаты подключаются автоматически, а после начала потока подключение обновляется. В доке — компактные **Online / Offline / Error + код**, подробности при наведении и кнопка переподключения со стрелкой.
+- «Помощь» заменена вкладкой **Настройки** с параметрами чата. Звук: **Выключен**, **Astra (по умолчанию)** или локальный PCM WAV. У Astra прежняя мелодия с удвоенной амплитудой; добавлены громкость и прослушивание. Звук выключен по умолчанию, история не озвучивается.
+- Журнал открывается отдельным окном по кнопке **О плагине → Открыть журнал**.
 
-### Как обновиться
+### После обновления
 
-1. В настройках плагина откройте **Обновления**, включите предварительные версии и установите **0.2.4**. Либо скачайте **updater.exe** из Assets.
-2. Для первой установки скачайте **obs-streambridge-0.2.4-windows-x64-setup.exe** и выберите корневую папку OBS после его закрытия.
-3. Откройте настройки YouTube и проверьте сервер и название выбранного эфира. В чате включите **Подключить чат**, при желании — **Тихий звук новых сообщений**.
+1. В **Обновлениях** разрешите предварительные версии и установите **0.2.5**, либо скачайте **updater.exe**. Для первой установки используйте **obs-streambridge-0.2.5-windows-x64-setup.exe**.
+2. Проверьте привязку аккаунтов и выбранную трансляцию YouTube. Нажимать «Подключить чат» больше не требуется.
+3. Для даты отслеживания в карточке пользователя один раз переподключите Twitch и подтвердите дополнительное разрешение `moderator:read:followers`. YouTube API не предоставляет такую дату для участников чата.
+4. В **Настройках** выберите звук и громкость. Свой файл — PCM WAV: 8/16 бит, моно/стерео, 8–96 кГц, до 10 секунд и 4 МБ. Настройки применяются сразу. Звук может попасть в захват аудио рабочего стола.
+
+Значки Twitch загружаются с площадки; YouTube передаёт только признаки ролей, поэтому для него используются локальные символы. GIF ограничены 512×512 и 2 МБ. Доступность картинок зависит от сети; в текущей проверке каталог BetterTTV и CDN Twitch доступны, CDN BetterTTV отвечал тайм-аутом. Анимация проверена на локальном GIF. Реальные эфиры при тестировании не запускались и не завершались.
 
 [Настройка YouTube](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.ru.md) · [Настройка Twitch](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.ru.md)
 
-`0*` у зрителей означает отсутствие числа в ответе YouTube: возможны ноль зрителей или скрытая статистика. `—` означает недоступные данные; подсказка показывает статус и выбранный эфир. Исправления проверяются на изолированных ответах API; аккаунт знакомого пользователя не проверялся. Официальная версия бесплатна, GPL-2.0-or-later, автор [AugustusNobilis](https://github.com/AugustusNobilis).
+Официальная версия бесплатна. GPL-2.0-or-later. Автор — [AugustusNobilis](https://github.com/AugustusNobilis).
 
 ---
 
@@ -26,18 +30,22 @@
 
 A preview for Windows x64 and OBS Studio 32 with Qt 6.8.
 
-- Removed the stream information dock. YouTube start/end controls moved to the main YouTube section. Edit title, description, category and game in YouTube Studio.
-- Fixed server persistence: applying a YouTube broadcast preserves the selected route; **Save server and key** saves both. The official backup address with `backup=1` passes validation.
-- The selected broadcast and its title survive reopening Settings, restarting OBS and refreshing OAuth tokens.
-- Chat falls back to the broadcast's chat identifier. Temporary network failures retry automatically. Missing or completed selections trigger active-broadcast discovery; ambiguous choices require explicit selection. Chat and viewers follow the selected broadcast without replacing a running output's key.
-- YouTube chat rows have a translucent red background; Twitch rows are purple. Optional quiet notifications are off by default, silent for history and limited to one sound per 1.5 seconds.
+- Stream uptime uses **hours:minutes:seconds**, without a 24-hour rollover.
+- Chat uses custom rendering: translucent platform backgrounds survive OBS themes, names are bold and platform-colored, role badges appear alongside them, and clicking a name opens a user card.
+- Twitch and global/channel BetterTTV emotes support animated GIFs. Unavailable images fall back to readable emote text. Direct GIF links support Giphy and Tenor media hosts; GIF web pages are not embedded.
+- Chats connect automatically and refresh when a stream starts. The dock shows compact **Online / Offline / Error + code**, detailed tooltips and an arrow reconnect button.
+- Help is replaced by **Settings** containing chat controls. Choose **Off**, **Astra (default)** or a local PCM WAV, with volume and preview. Astra keeps the same melody at twice the amplitude. Sound remains off by default and history is silent.
+- The log opens in a separate **About → Open log** dialog.
 
-### Update
+### After updating
 
-1. Open **Updates** in plugin settings, enable previews and install **0.2.4**. Alternatively, download **updater.exe** from Assets.
-2. For a first installation, download **obs-streambridge-0.2.4-windows-x64-setup.exe**, close OBS and select its root folder.
-3. Check the server and selected broadcast title in YouTube settings. Enable **Connect chat** and optionally **Quiet sound for new messages**.
+1. Enable previews in **Updates** and install **0.2.5**, or download **updater.exe**. First installations use **obs-streambridge-0.2.5-windows-x64-setup.exe**.
+2. Check linked accounts and the selected YouTube broadcast. A Connect chat click is no longer required.
+3. Reconnect Twitch once and grant `moderator:read:followers` to see follow dates in user cards. YouTube API does not provide this date for arbitrary chat viewers.
+4. Choose sound and volume under **Settings**. Custom files support PCM WAV: 8/16-bit mono/stereo, 8–96 kHz, up to 10 seconds and 4 MB. Changes apply immediately. Desktop Audio may capture playback.
+
+Twitch badge artwork comes from the platform; YouTube provides role flags only, represented by local symbols. GIFs are limited to 512×512 and 2 MB. Image availability depends on the network; this check reached the BetterTTV catalog and Twitch CDN, but the BetterTTV image CDN timed out. Animation was validated with a local GIF fixture. No real broadcasts were started or ended during testing.
 
 [YouTube setup](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/YOUTUBE-SETUP.en.md) · [Twitch setup](https://github.com/AugustusNobilis/StreamBridge/blob/main/docs/TWITCH-SETUP.en.md)
 
-`0*` means YouTube omitted the count: there may be zero viewers or hidden statistics. A dash means unavailable data; hover for status and the selected broadcast. Fixes use isolated provider-response tests; the friend's live account was not inspected. The official version is free, GPL-2.0-or-later, by [AugustusNobilis](https://github.com/AugustusNobilis).
+The official version is free. GPL-2.0-or-later. By [AugustusNobilis](https://github.com/AugustusNobilis).

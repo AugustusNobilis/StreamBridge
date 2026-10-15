@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(obs-streambridge VERSION 0.2.4 LANGUAGES C CXX)
+project(obs-streambridge VERSION 0.2.5 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CTest)
@@ -80,7 +80,7 @@ add_library(streambridge-platforms STATIC src/platform/hub.cpp src/platform/irc.
 set_target_properties(streambridge-platforms PROPERTIES AUTOMOC ON)
 target_link_libraries(streambridge-platforms PUBLIC streambridge-accounts)
 add_library(obs-streambridge MODULE src/plugin.cpp src/ui/dock.cpp src/ui/settings.cpp src/ui/account-panel.cpp src/ui/setup-guides.qrc
-  src/ui/locale.cpp src/ui/platform-docks.cpp
+  src/ui/locale.cpp src/ui/platform-docks.cpp src/ui/chat-settings.cpp src/ui/chat-view.cpp
   src/browser/source.cpp src/browser/worker.cpp)
 set_target_properties(obs-streambridge PROPERTIES AUTOMOC ON AUTORCC ON PREFIX "")
 add_dependencies(obs-streambridge streambridge-update-helper)
@@ -91,6 +91,8 @@ install(TARGETS streambridge-update-helper RUNTIME DESTINATION data/obs-plugins/
 install(DIRECTORY data/ DESTINATION data/obs-plugins/obs-streambridge)
 install(FILES "$<TARGET_FILE:Qt6::QSchannelBackendPlugin>"
   DESTINATION data/obs-plugins/obs-streambridge/qt-plugins/tls)
+install(FILES "${CMAKE_SOURCE_DIR}/.deps/obs-deps-qt6-2025-08-23-x64/plugins/imageformats/qgif.dll"
+  DESTINATION data/obs-plugins/obs-streambridge/qt-plugins/imageformats)
 install(FILES "${CMAKE_SOURCE_DIR}/.deps/obs-deps-qt6-2025-08-23-x64/licenses/qt6/LICENSE.GPL2"
   DESTINATION data/obs-plugins/obs-streambridge/qt-plugins)
 install(FILES LICENSE THIRD_PARTY_NOTICES.md README.md SECURITY.md CHANGELOG.md DESTINATION data/obs-plugins/obs-streambridge)
@@ -129,8 +131,8 @@ if(BUILD_TESTING)
   add_test(NAME browser-settings COMMAND browser-settings-tests)
 endif()
 if(STREAMBRIDGE_INTEGRATION_TESTS)
-  add_executable(ui-tests tests/ui-tests.cpp src/ui/dock.cpp src/ui/settings.cpp src/ui/account-panel.cpp src/ui/platform-docks.cpp src/ui/setup-guides.qrc)
-  set_target_properties(ui-tests PROPERTIES AUTORCC ON)
+  add_executable(ui-tests tests/ui-tests.cpp src/ui/chat-settings.cpp src/ui/chat-view.cpp src/ui/dock.cpp src/ui/settings.cpp src/ui/account-panel.cpp src/ui/platform-docks.cpp src/ui/setup-guides.qrc)
+  set_target_properties(ui-tests PROPERTIES AUTORCC ON AUTOMOC ON)
   target_compile_definitions(ui-tests PRIVATE STREAMBRIDGE_VERSION="${PROJECT_VERSION}")
   target_link_libraries(ui-tests PRIVATE streambridge-runtime streambridge-platforms streambridge-updates Qt6::Widgets winmm)
   add_test(NAME ui COMMAND ui-tests "${CMAKE_SOURCE_DIR}/data/locale" "${CMAKE_BINARY_DIR}/ui-review")

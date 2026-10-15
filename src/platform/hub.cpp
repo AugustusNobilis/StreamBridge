@@ -45,7 +45,16 @@ PlatformHub::PlatformHub(OAuthAccount &youtube, OAuthAccount &twitch, QObject *p
         ensureIrc();
     });
     connect(&ircRetry_, &QTimer::timeout, this, &PlatformHub::ensureIrc);
-    connect(&ircWatchdog_, &QTimer::timeout, this, [this] { irc_.abort(); });
+    connect(&ircWatchdog_, &QTimer::timeout, this, [this] {
+        irc_.abort();
+        if (chatEnabled_ && !stopped_ && !ircDenied_) {
+            chatStatus_[1] = "PlatformNetwork";
+            chatErrors_[1] = "TIMEOUT";
+            if (!ircRetry_.isActive())
+                ircRetry_.start(retrySeconds_ * 1000);
+            emit changed();
+        }
+    });
     connect(&irc_, &QSslSocket::encrypted, this, [this] {
         const auto login = account(1).label().toUtf8();
         if (!QRegularExpression("^[a-zA-Z0-9_]{1,25}$").match(QString::fromUtf8(login)).hasMatch()) {
@@ -80,6 +89,7 @@ PlatformHub::PlatformHub(OAuthAccount &youtube, OAuthAccount &twitch, QObject *p
     connect(&irc_, &QSslSocket::errorOccurred, this, [this] {
         if (chatEnabled_ && !stopped_ && !ircDenied_ && !ircRetry_.isActive()) {
             chatStatus_[1] = "PlatformNetwork";
+            chatErrors_[1] = "NET-" + QString::number(static_cast<int>(irc_.error()));
             emit changed();
             ircRetry_.start(retrySeconds_ * 1000);
             retrySeconds_ = std::min(120, retrySeconds_ * 2);
@@ -125,6 +135,12 @@ void PlatformHub::syncAccounts() {
         working_[i] = false;
         infoPending_[i] = false;
         info_[i] = {};
+        chatErrors_[i].clear();
+        if (i == 1) {
+            badgesIdentity_.clear();
+            badgeCatalog_ = {};
+            followersPending_.clear();
+        }
         emit messagesRemoved(i, {}, {});
         status_[i] = a.linked() ? "PlatformLoading" : "PlatformConnect";
         chatStatus_[i] = chatEnabled_ ? status_[i] : "ChatDisabled";
@@ -186,6 +202,13 @@ void PlatformHub::next(int p) {
                        });
 }
 bool PlatformHub::result(int p, const HttpResult &r) {
+    if (!r.ok() && chatEnabled_ && info_[p].chatId.isEmpty()) {
+        chatErrors_[p] = r.status ? QString::number(r.status) : "NETWORK";
+        if (p == 0)
+            chatStatus_[p] = r.status == 403   ? "PlatformPermission"
+                             : r.status == 401 ? "PlatformReconnect"
+                                               : "PlatformNetwork";
+    }
     status_[p] = r.ok()            ? "PlatformReady"
                  : r.status == 401 ? "PlatformReconnect"
                  : r.status == 403 ? "PlatformPermission"
@@ -433,6 +456,7 @@ void PlatformHub::setChatEnabled(bool enabled) {
         refresh();
     } else {
         chatStatus_.fill("ChatDisabled");
+        chatErrors_.fill({});
         youtubeTimer_.stop();
         ircRetry_.stop();
         irc_.abort();
@@ -455,6 +479,7 @@ void PlatformHub::pollYouTubeChat() {
         if (!chatEnabled_)
             return;
         if (!result(0, r)) {
+            chatErrors_[0] = r.status ? QString::number(r.status) : "NETWORK";
             const auto errors = r.json["error"].toObject()["errors"].toArray();
             const auto reason = errors.isEmpty() ? QString() : errors[0].toObject()["reason"].toString();
             if (reason == "liveChatEnded" || reason == "liveChatNotFound") {
@@ -473,6 +498,7 @@ void PlatformHub::pollYouTubeChat() {
         }
         youtubeRetrySeconds_ = 5;
         chatStatus_[0] = "ChatConnected";
+        chatErrors_[0].clear();
         pageToken_ = r.json["nextPageToken"].toString();
         for (const auto &value : r.json["items"].toArray()) {
             const auto item = value.toObject(), s = item["snippet"].toObject(),
@@ -488,13 +514,26 @@ void PlatformHub::pollYouTubeChat() {
                 if (!user.isEmpty())
                     emit messagesRemoved(0, {}, user);
             } else if (!s["displayMessage"].toString().isEmpty()) {
-                deliver(
-                    {0, item["id"].toString(), a["channelId"].toString(), a["displayName"].toString(),
-                     s["displayMessage"].toString(), info_[0].chatId,
-                     QDateTime::fromString(s["publishedAt"].toString(), Qt::ISODate),
-                     !a["isChatOwner"].toBool() && !a["isChatModerator"].toBool(),
-                     youtubeChatPrimed_ && QDateTime::fromString(s["publishedAt"].toString(), Qt::ISODate) >=
-                                               QDateTime::currentDateTimeUtc().addSecs(-30)});
+                ChatMessage message{0,
+                                    item["id"].toString(),
+                                    a["channelId"].toString(),
+                                    a["displayName"].toString(),
+                                    s["displayMessage"].toString(),
+                                    info_[0].chatId,
+                                    QDateTime::fromString(s["publishedAt"].toString(), Qt::ISODate),
+                                    !a["isChatOwner"].toBool() && !a["isChatModerator"].toBool(),
+                                    youtubeChatPrimed_ &&
+                                        QDateTime::fromString(s["publishedAt"].toString(), Qt::ISODate) >=
+                                            QDateTime::currentDateTimeUtc().addSecs(-30)};
+                if (a["isChatOwner"].toBool())
+                    message.badges << "owner";
+                if (a["isChatModerator"].toBool())
+                    message.badges << "moderator";
+                if (a["isChatSponsor"].toBool())
+                    message.badges << "member";
+                if (a["isVerified"].toBool())
+                    message.badges << "verified";
+                deliver(std::move(message));
             }
         }
         youtubeChatPrimed_ = true;
@@ -508,6 +547,7 @@ void PlatformHub::ensureIrc() {
         return;
     if (!account(1).hasScope("chat:read")) {
         chatStatus_[1] = "PlatformReconnect";
+        chatErrors_[1] = "401";
         emit changed();
         return;
     }
@@ -534,8 +574,11 @@ void PlatformHub::readIrc() {
         if (line.command == "PING")
             irc_.write("PONG :" + line.parameters.value(0).toUtf8() + "\r\n");
         else if (line.command == "001") {
+            chatStatus_[1] = "PlatformLoading";
+        } else if (line.command == "ROOMSTATE" && line.parameters.value(0) == "#" + account(1).label()) {
             retrySeconds_ = 2;
             chatStatus_[1] = "ChatConnected";
+            chatErrors_[1].clear();
             emit changed();
         } else if (line.command == "RECONNECT") {
             irc_.abort();
@@ -544,6 +587,16 @@ void PlatformHub::readIrc() {
                    line.parameters.join(' ').contains("auth", Qt::CaseInsensitive)) {
             ircDenied_ = true;
             chatStatus_[1] = "PlatformReconnect";
+            chatErrors_[1] = "401";
+            irc_.abort();
+            emit changed();
+            return;
+        } else if (line.command == "NOTICE" &&
+                   QStringList{"msg_banned", "msg_channel_suspended", "msg_room_not_found", "no_permission"}
+                       .contains(line.tags.value("msg-id"))) {
+            ircDenied_ = true;
+            chatStatus_[1] = "PlatformPermission";
+            chatErrors_[1] = line.tags.value("msg-id");
             irc_.abort();
             emit changed();
             return;
@@ -552,11 +605,18 @@ void PlatformHub::readIrc() {
             if (room != account(1).userId())
                 continue;
             const auto source = line.tags.value("source-room-id");
-            deliver({1, line.tags.value("id"), line.tags.value("user-id"),
-                     line.tags.value("display-name", line.prefix.section('!', 0, 0)), line.parameters[1],
-                     room, QDateTime::fromMSecsSinceEpoch(line.tags.value("tmi-sent-ts").toLongLong()),
-                     (source.isEmpty() || source == room) && line.tags.value("mod") != "1" &&
-                         line.tags.value("user-id") != room});
+            ChatMessage message{1,
+                                line.tags.value("id"),
+                                line.tags.value("user-id"),
+                                line.tags.value("display-name", line.prefix.section('!', 0, 0)),
+                                line.parameters[1],
+                                room,
+                                QDateTime::fromMSecsSinceEpoch(line.tags.value("tmi-sent-ts").toLongLong()),
+                                (source.isEmpty() || source == room) && line.tags.value("mod") != "1" &&
+                                    line.tags.value("user-id") != room};
+            message.badges = line.tags.value("badges").split(',', Qt::SkipEmptyParts);
+            message.emotes = line.tags.value("emotes");
+            deliver(std::move(message));
         } else if (line.command == "CLEARMSG" && !line.tags.value("target-msg-id").isEmpty() &&
                    line.parameters.value(0) == "#" + account(1).label())
             emit messagesRemoved(1, line.tags.value("target-msg-id"), {});
@@ -575,6 +635,80 @@ void PlatformHub::deliver(ChatMessage message) {
     while (seenOrder_.size() > 2000)
         seen_.remove(seenOrder_.dequeue());
     emit messageReceived(std::move(message));
+}
+void PlatformHub::loadChatBadges() {
+    if (!chatEnabled_ || !account(1).linked() || account(1).accessToken().isEmpty())
+        return;
+    const auto identity = account(1).clientId() + "/" + account(1).userId();
+    if (badgesIdentity_ == identity) {
+        if (!badgeCatalog_.isEmpty())
+            emit chatBadgesReady(badgeCatalog_);
+        return;
+    }
+    badgesIdentity_ = identity;
+    request(1, "chat/badges/global", {}, "GET", {}, [this](HttpResult r) {
+        if (!r.ok()) {
+            badgesIdentity_.clear();
+            return;
+        }
+        auto catalog = r.json;
+        request(1, "chat/badges", query({{"broadcaster_id", account(1).userId()}}), "GET", {},
+                [this, catalog](HttpResult channel) mutable {
+                    auto data = catalog["data"].toArray();
+                    if (channel.ok())
+                        for (const auto &badge : channel.json["data"].toArray())
+                            data.append(badge);
+                    else
+                        badgesIdentity_.clear();
+                    catalog["data"] = data;
+                    badgeCatalog_ = catalog;
+                    emit chatBadgesReady(catalog);
+                });
+    });
+}
+void PlatformHub::lookupFollower(const ChatMessage &m) {
+    if (m.platform < 0 || m.platform > 1 || m.userId.isEmpty())
+        return;
+    if (m.platform == 0) {
+        emit followerReady(0, m.userId, "FollowYouTubeUnavailable", {});
+        return;
+    }
+    if (m.room != account(1).userId() || !account(1).linked()) {
+        emit followerReady(1, m.userId, "PlatformConnect", {});
+        return;
+    }
+    if (m.userId == m.room) {
+        emit followerReady(1, m.userId, "RoleOwner", {});
+        return;
+    }
+    if (!account(1).hasScope("moderator:read:followers")) {
+        emit followerReady(1, m.userId, "FollowReconnect", {});
+        return;
+    }
+    if (followersPending_.contains(m.userId))
+        return;
+    followersPending_.insert(m.userId);
+    request(1, "channels/followers", query({{"broadcaster_id", m.room}, {"user_id", m.userId}}), "GET", {},
+            [this, user = m.userId](HttpResult r) {
+                followersPending_.remove(user);
+                if (!r.ok()) {
+                    emit followerReady(
+                        1, user, r.status == 401 || r.status == 403 ? "FollowReconnect" : "PlatformNetwork",
+                        {});
+                    return;
+                }
+                const auto data = r.json["data"].toArray();
+                if (data.isEmpty()) {
+                    emit followerReady(1, user, "FollowNotFollowing", {});
+                    return;
+                }
+                const auto item = data[0].toObject();
+                const auto since = QDateTime::fromString(item["followed_at"].toString(), Qt::ISODate);
+                emit followerReady(1, user,
+                                   item["user_id"].toString() == user && since.isValid() ? "FollowSince"
+                                                                                         : "PlatformNetwork",
+                                   since);
+            });
 }
 void PlatformHub::searchCategories(int p, const QString &term, const QString &region,
                                    const QString &language) {

@@ -28,6 +28,7 @@ class OutputManager : public QObject {
     OutputManager(QString directory, QObject *parent = nullptr, QString outputType = "rtmp_output");
     ~OutputManager() override;
     const Config &config() const { return config_; }
+    const QString &directory() const { return directory_; }
     bool configure(const Config &config, QString &error);
     bool busy() const;
     const StreamStatus &status(size_t index) const { return sessions_.at(index).status; }

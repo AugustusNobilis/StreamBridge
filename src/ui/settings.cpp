@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "settings.hpp"
 #include "account-panel.hpp"
+#include "chat-settings.hpp"
 #include "locale.hpp"
 #include "updates/checker.hpp"
 #include <QCheckBox>
@@ -277,35 +278,10 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
     selectMode(advanced->isChecked());
     encoding->setEnabled(!manager.busy());
     tabs->addTab(encoding, text("Encoding"));
-    auto infoTab = [&](const char *title, const char *message) {
-        auto *page = new QWidget(tabs);
-        auto *v = new QVBoxLayout(page);
-        v->addWidget(note(text(message), page));
-        v->addStretch();
-        auto *scroll = new QScrollArea(tabs);
-        scroll->setWidgetResizable(true);
-        scroll->setWidget(page);
-        tabs->addTab(scroll, text(title));
-    };
-    infoTab("Help", "HelpDetails");
-    auto *logsPage = new QWidget(tabs);
-    auto *logsLayout = new QVBoxLayout(logsPage);
-    auto *logs = new QPlainTextEdit(manager.diagnostics().join('\n'), logsPage);
-    logs->setReadOnly(true);
-    logsLayout->addWidget(logs);
-    auto *exportLogs = new QPushButton(text("ExportLogs"), logsPage);
-    logsLayout->addWidget(exportLogs);
-    connect(exportLogs, &QPushButton::clicked, this, [this, logs] {
-        const QString filename = QFileDialog::getSaveFileName(this, text("ExportLogs"),
-                                                              "streambridge-diagnostics.txt", "Text (*.txt)");
-        if (filename.isEmpty())
-            return;
-        QSaveFile file(filename);
-        const auto bytes = logs->toPlainText().toUtf8();
-        if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
-            QMessageBox::warning(this, "StreamBridge", text("SaveFailed"));
-    });
-    tabs->addTab(logsPage, text("Logs"));
+    auto *preferences = new QScrollArea(tabs);
+    preferences->setWidgetResizable(true);
+    preferences->setWidget(createChatSettings(manager.directory(), preferences));
+    tabs->addTab(preferences, text("Preferences"));
     auto *updates = new QWidget(tabs);
     auto *updateLayout = new QVBoxLayout(updates);
     updateLayout->addWidget(note(text("LocalVersion").arg(STREAMBRIDGE_VERSION), updates));
@@ -411,6 +387,34 @@ Settings::Settings(OutputManager &manager, QWidget *parent) : QDialog(parent) {
     author->setOpenExternalLinks(true);
     aboutLayout->addWidget(author);
     aboutLayout->addWidget(note(text("AboutLicense"), about));
+    auto *openLogs = new QPushButton(text("OpenLogs"), about);
+    openLogs->setObjectName("openLogs");
+    aboutLayout->addWidget(openLogs);
+    connect(openLogs, &QPushButton::clicked, this, [this, &manager] {
+        QDialog dialog(this);
+        dialog.setWindowTitle(text("Logs"));
+        dialog.resize(680, 480);
+        auto *layout = new QVBoxLayout(&dialog);
+        auto *logs = new QPlainTextEdit(manager.diagnostics().join('\n'), &dialog);
+        logs->setReadOnly(true);
+        layout->addWidget(logs);
+        auto *exportLogs = new QPushButton(text("ExportLogs"), &dialog);
+        layout->addWidget(exportLogs);
+        connect(exportLogs, &QPushButton::clicked, &dialog, [&dialog, logs] {
+            const auto filename = QFileDialog::getSaveFileName(
+                &dialog, text("ExportLogs"), "streambridge-diagnostics.txt", "Text (*.txt)");
+            if (filename.isEmpty())
+                return;
+            QSaveFile file(filename);
+            const auto bytes = logs->toPlainText().toUtf8();
+            if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
+                QMessageBox::warning(&dialog, "StreamBridge", text("SaveFailed"));
+        });
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+        layout->addWidget(buttons);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        dialog.exec();
+    });
     auto *languages = new QComboBox(about);
     languages->addItem(text("LanguageOBS"), QString());
     languages->addItem("Русский", "ru-RU");

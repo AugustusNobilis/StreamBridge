@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "dock.hpp"
 #include "browser/source.hpp"
+#include "chat-settings.hpp"
 #include "locale.hpp"
 #include "platform-docks.hpp"
 #include "settings.hpp"
@@ -103,6 +104,21 @@ Dock::Dock(OutputManager &manager, PlatformHub &hub, QWidget *parent) : QWidget(
         }
     });
     connect(&manager_, &OutputManager::changed, this, &Dock::refresh);
+    auto preferences = chatPreferences(manager.directory());
+    auto live = std::make_shared<std::array<bool, 2>>();
+    connect(&manager_, &OutputManager::changed, this, [this, &hub, preferences, live] {
+        bool started = false;
+        for (size_t i = 0; i < 2; ++i) {
+            const bool now = manager_.status(i).state == StreamState::Live;
+            started |= now && !(*live)[i];
+            (*live)[i] = now;
+        }
+        if (started && preferences->enabled()) {
+            hub.setChatEnabled(true);
+            hub.refresh();
+            hub.loadChatBadges();
+        }
+    });
     refresh();
 }
 void Dock::openSettings() {
@@ -121,8 +137,11 @@ void Dock::refresh() {
             state += QString(" (%1 s)").arg(s.retrySeconds);
         status_[i]->setText(state + (s.error.isEmpty() ? "" : "\n" + s.error));
         status_[i]->setToolTip(manager_.config().endpoints[i].server);
-        metrics_[i]->setText(
-            text("Metrics").arg(s.kbps, 0, 'f', 0).arg(s.dropped).arg(s.seconds).arg(s.reconnects));
+        metrics_[i]->setText(text("Metrics")
+                                 .arg(s.kbps, 0, 'f', 0)
+                                 .arg(s.dropped)
+                                 .arg(streamDuration(s.seconds))
+                                 .arg(s.reconnects));
         const bool idle = s.state == StreamState::Idle || s.state == StreamState::Failed;
         start_[i]->setEnabled(idle);
         stop_[i]->setEnabled(!idle && s.state != StreamState::Stopping);

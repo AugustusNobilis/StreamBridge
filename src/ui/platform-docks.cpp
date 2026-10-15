@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "platform-docks.hpp"
+#include "chat-settings.hpp"
+#include "chat-view.hpp"
 #include "locale.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QFormLayout>
 #include <QLabel>
@@ -21,6 +25,7 @@
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QTabWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QtEndian>
 #include <cmath>
@@ -30,7 +35,6 @@
 
 // WinMM declarations require the Windows types above.
 #include <mmsystem.h>
-Q_DECLARE_METATYPE(sb::ChatMessage)
 namespace sb {
 static QLabel *label(const QString &value, QWidget *parent) {
     auto *widget = new QLabel(value, parent);
@@ -115,73 +119,147 @@ QByteArray chatNotificationWave() {
         const double t = static_cast<double>(i) / rate;
         const double envelope = std::pow(std::sin(pi * i / (samples - 1)), 2);
         const auto sample = static_cast<qint16>(
-            900 * envelope * (0.75 * std::sin(2 * pi * 660 * t) + 0.25 * std::sin(2 * pi * 880 * t)));
+            1800 * envelope * (0.75 * std::sin(2 * pi * 660 * t) + 0.25 * std::sin(2 * pi * 880 * t)));
         qToLittleEndian<qint16>(sample, wave.data() + 44 + i * 2);
     }
     return wave;
+}
+QString streamDuration(qint64 seconds) {
+    seconds = std::max<qint64>(0, seconds);
+    return QString("%1:%2:%3")
+        .arg(seconds / 3600, 2, 10, QChar('0'))
+        .arg(seconds / 60 % 60, 2, 10, QChar('0'))
+        .arg(seconds % 60, 2, 10, QChar('0'));
 }
 QWidget *createChatDock(PlatformHub &hub, const QString &directory, std::function<void()> notify) {
     auto *panel = new QWidget;
     panel->setMinimumSize(260, 200);
     auto *layout = new QVBoxLayout(panel);
-    auto *enabled = new QCheckBox(text("ChatEnable"), panel);
-    enabled->setToolTip(text("ChatPrivacy"));
-    layout->addWidget(enabled);
-    auto preferences = std::make_shared<QSettings>(directory + "/ui.ini", QSettings::IniFormat);
-    auto *sound = new QCheckBox(text("ChatSound"), panel);
-    sound->setObjectName("chatSound");
-    sound->setToolTip(text("ChatSoundHint"));
-    sound->setChecked(preferences->value("chat/sound", false).toBool());
-    layout->addWidget(sound);
-    QObject::connect(sound, &QCheckBox::toggled, panel, [preferences](bool checked) {
-        preferences->setValue("chat/sound", checked);
-        preferences->sync();
-    });
-    if (!notify)
-        notify = [] {
-            static const auto wave = chatNotificationWave();
-            PlaySoundA(wave.constData(), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT | SND_NOSTOP);
-        };
-    auto lastSound = std::make_shared<QElapsedTimer>();
-    auto *status = label({}, panel);
-    layout->addWidget(status);
-    auto *list = new QListWidget(panel);
-    list->setWordWrap(true);
-    list->setSelectionMode(QAbstractItemView::SingleSelection);
-    list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    list->setContextMenuPolicy(Qt::CustomContextMenu);
+    layout->setContentsMargins(6, 6, 6, 6);
+    auto preferences = chatPreferences(directory);
+    auto *header = new QHBoxLayout;
+    std::array<QLabel *, 2> status{label({}, panel), label({}, panel)};
+    for (int i = 0; i < 2; ++i) {
+        status[i]->setObjectName(QString("chatStatus%1").arg(i));
+        header->addWidget(status[i]);
+    }
+    header->addStretch();
+    auto *retry = new QToolButton(panel);
+    retry->setObjectName("chatReconnect");
+    retry->setToolTip(text("PlatformRefresh"));
+    retry->setAccessibleName(text("PlatformRefresh"));
+    retry->setAutoRaise(true);
+    retry->setFixedSize(28, 28);
+    QPixmap icon(24, 24);
+    icon.fill(Qt::transparent);
+    {
+        QPainter p(&icon);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QPen(panel->palette().color(QPalette::WindowText), 2.2, Qt::SolidLine, Qt::RoundCap));
+        p.drawArc(QRectF(4, 4, 16, 16), 30 * 16, 280 * 16);
+        p.drawPolyline(QPolygonF{{15, 2}, {21, 4}, {19, 10}});
+    }
+    retry->setIcon(QIcon(icon));
+    header->addWidget(retry);
+    layout->addLayout(header);
+    auto *media = new ChatMedia(panel);
+    auto *list = new ChatView(*media, panel);
+    list->setObjectName("chatMessages");
     layout->addWidget(list, 1);
-    layout->addWidget(label(text("ChatModerationHint"), panel));
-    auto *retry = new QPushButton(text("PlatformRefresh"), panel);
-    layout->addWidget(retry);
-    QObject::connect(enabled, &QCheckBox::toggled, &hub, &PlatformHub::setChatEnabled);
-    QObject::connect(retry, &QPushButton::clicked, &hub, &PlatformHub::refresh);
-    const auto refresh = [status, &hub] {
-        const auto title = hub.account(0).broadcastTitle();
-        status->setText("YouTube · " + text(hub.chatStatus(0).toUtf8().constData()) +
-                        (title.isEmpty() ? QString() : "\n" + text("SelectedBroadcast").arg(title)) +
-                        "\nTwitch · " + text(hub.chatStatus(1).toUtf8().constData()));
+    auto *player = new ChatSound(panel);
+    auto lastSound = std::make_shared<QElapsedTimer>();
+    QObject::connect(retry, &QToolButton::clicked, panel, [preferences, media, &hub] {
+        media->reloadCatalogs();
+        hub.setChatEnabled(false);
+        hub.setChatEnabled(preferences->enabled());
+        hub.refresh();
+        hub.loadChatBadges();
+    });
+    const auto refresh = [=, &hub] {
+        for (int i = 0; i < 2; ++i) {
+            const auto state = hub.chatStatus(i);
+            const bool online = state == "ChatConnected";
+            const bool error = state == "ChatRetrying" || state == "PlatformNetwork" ||
+                               state == "PlatformReconnect" || state == "PlatformPermission" ||
+                               state == "PlatformRateLimit" || state == "ChatDisabledOnYouTube";
+            const auto code = hub.chatError(i).isEmpty() ? QString("AUTH") : hub.chatError(i);
+            status[i]->setText(QString(i == 0 ? "YouTube · " : "Twitch · ") + (online  ? "Online"
+                                                                               : error ? "Error " + code
+                                                                                       : "Offline"));
+            status[i]->setStyleSheet(QString("color:%1;")
+                                         .arg(online  ? "#83bd9a"
+                                              : error ? "#df858c"
+                                                      : "#969ba5"));
+            status[i]->setToolTip(text(state.toUtf8().constData()) +
+                                  (i == 0 && !hub.account(0).broadcastId().isEmpty()
+                                       ? "\n" + text("SelectedBroadcast").arg(hub.account(0).broadcastTitle())
+                                       : QString()));
+        }
     };
     QObject::connect(&hub, &PlatformHub::changed, panel, refresh);
-    QObject::connect(
-        &hub, &PlatformHub::messageReceived, panel, [list, sound, notify, lastSound](const ChatMessage &m) {
-            const bool bottom =
-                list->verticalScrollBar()->value() >= list->verticalScrollBar()->maximum() - 4;
-            auto *item = new QListWidgetItem(
-                platformIcon(m.platform),
-                m.time.toLocalTime().toString("HH:mm") + "  " + m.author + "\n" + m.text, list);
-            item->setData(Qt::UserRole, QVariant::fromValue(m));
-            item->setToolTip(m.platform == 0 ? "YouTube" : "Twitch");
-            item->setBackground(m.platform == 0 ? QColor(214, 91, 100, 32) : QColor(164, 122, 221, 34));
-            while (list->count() > 500)
-                delete list->takeItem(0);
-            if (bottom)
-                list->scrollToBottom();
-            if (sound->isChecked() && m.notify && (!lastSound->isValid() || lastSound->elapsed() >= 1500)) {
-                lastSound->start();
+    QObject::connect(&hub, &PlatformHub::chatBadgesReady, media, &ChatMedia::setBadges);
+    const auto syncMedia = [media, &hub] {
+        media->setChannel(hub.chatEnabled() && hub.account(1).linked() ? hub.account(1).userId() : QString());
+        hub.loadChatBadges();
+    };
+    QObject::connect(&hub.account(1), &OAuthAccount::changed, panel, syncMedia);
+    QObject::connect(preferences.get(), &ChatPreferences::changed, panel, [=, &hub] {
+        if (hub.chatEnabled() != preferences->enabled()) {
+            hub.setChatEnabled(preferences->enabled());
+            syncMedia();
+        }
+    });
+    hub.setChatEnabled(preferences->enabled());
+    syncMedia();
+    QObject::connect(&hub, &PlatformHub::messageReceived, panel, [=](const ChatMessage &m) {
+        list->append(m);
+        if (preferences->sound() != "off" && preferences->volume() > 0 && m.notify &&
+            (!lastSound->isValid() || lastSound->elapsed() >= 1500)) {
+            lastSound->start();
+            if (notify)
                 notify();
+            else {
+                QString error;
+                if (!player->play(*preferences, error))
+                    list->setToolTip(text(error.toUtf8().constData()));
             }
-        });
+        }
+    });
+    QObject::connect(list, &ChatView::authorClicked, panel, [panel, &hub](const ChatMessage &m) {
+        auto *dialog = new QDialog(panel);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setWindowTitle(m.author);
+        auto *body = new QVBoxLayout(dialog);
+        auto *name = label(m.author + (m.platform == 0 ? " · YouTube" : " · Twitch"), dialog);
+        auto font = name->font();
+        font.setBold(true);
+        name->setFont(font);
+        body->addWidget(name);
+        QStringList roles;
+        for (const auto &badge : m.badges)
+            roles << chatRoleName(badge);
+        if (!roles.isEmpty())
+            body->addWidget(label(roles.join(", "), dialog));
+        auto *follow = label(text("PlatformLoading"), dialog);
+        body->addWidget(follow);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+        body->addWidget(buttons);
+        QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+        QObject::connect(
+            &hub, &PlatformHub::followerReady, dialog,
+            [follow, m](int platform, const QString &user, const QString &state, const QDateTime &since) {
+                if (platform != m.platform || user != m.userId)
+                    return;
+                follow->setText(state == "FollowSince"
+                                    ? text("FollowSince")
+                                          .arg(since.toLocalTime().toString("dd.MM.yyyy HH:mm"))
+                                          .arg(since.daysTo(QDateTime::currentDateTimeUtc()))
+                                    : text(state.toUtf8().constData()));
+            });
+        dialog->resize(380, 180);
+        dialog->show();
+        hub.lookupFollower(m);
+    });
     QObject::connect(&hub, &PlatformHub::messagesRemoved, panel,
                      [list](int platform, const QString &message, const QString &user) {
                          for (int row = list->count() - 1; row >= 0; --row) {

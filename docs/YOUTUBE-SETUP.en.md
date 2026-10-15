@@ -90,12 +90,12 @@ To change broadcasts, stop the YouTube output in StreamBridge, select the new br
 
 ## 7. Enable chat and check the selected broadcast
 
-1. Enable **StreamBridge — Chat** in **Docks**, then check **Connect chat**.
+1. Enable **StreamBridge — Chat** in **Docks**. Linked accounts connect automatically; hover over a status for details.
 2. Check the selected broadcast title below the YouTube status. Chat uses the connected account; a stream key alone cannot provide chat or viewers.
 3. Selection survives closing Settings and restarting OBS. If missing or completed, the plugin looks for an active broadcast. Load the list and choose explicitly when several broadcasts are active.
 4. You can select while streaming: this changes chat/viewer monitoring only, without replacing the running output's server or key.
 5. If chat is missing, check the channel and Studio chat settings. Temporary network failures retry automatically; permission and quota errors have separate status messages.
-6. Optionally enable **Quiet sound for new messages**. It is off by default and loaded history is silent.
+6. Set sound under **StreamBridge settings → Settings**: off, Astra or a local PCM WAV, with volume and preview controls. History is silent. Click a name for a user card; YouTube API does not provide a viewer’s channel subscription date.
 
 The stream information dock has been removed. Click **Open YouTube Studio** in the main YouTube section to edit title, description, category and game in the platform editor.
 ## 8. End the broadcast from OBS
@@ -128,7 +128,7 @@ Counts refresh about once a minute. Chat requests no longer cause viewer refresh
 | No broadcasts in the list | Check the channel and create an unfinished encoder broadcast, then load the list again. |
 | The broadcast has no bound stream | Open it in Studio, configure its stream and key, then select it again in StreamBridge. |
 | API or quota error | Check that **YouTube Data API v3** is enabled in the same project and that quota remains. Repeated retries do not restore quota. |
-| Empty chat or a dash for viewers | Check the selected broadcast, its live status, chat availability in Studio and **Connect chat**. |
+| Empty chat or a dash for viewers | Check the selected broadcast, its live status, chat availability in Studio and **Connect chats automatically** under **Settings**. |
 
 ## Video only, without Google Cloud
 

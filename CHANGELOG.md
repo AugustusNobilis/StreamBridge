@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.5 — 2026-10-15
+
+- Show stream uptime as HH:MM:SS, including hours beyond 24.
+- Render chat backgrounds independently of OBS styles, with bold platform-colored names, role badges and clickable user cards.
+- Support Twitch emotes, BetterTTV global/channel emotes and animated GIFs, with bounded anonymous media loading and text fallback.
+- Fetch Twitch following dates on demand; request the additional follower scope on reconnect.
+- Automatically connect linked chats, refresh on stream start and show compact Online/Offline/Error statuses with an icon reconnect action.
+- Move chat controls to Settings and the log to an About dialog. Add Astra at twice its previous amplitude, custom PCM WAV, volume and preview.
+
 ## 0.2.4 — 2026-10-14
 
 - Remove the stream information dock; retain YouTube lifecycle controls in the main dock.

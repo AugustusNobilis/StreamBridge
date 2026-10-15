@@ -8,10 +8,10 @@
 #include <windows.h>
 
 namespace bootstrap {
-inline constexpr auto version = L"0.2.4";
-inline constexpr auto assetName = L"obs-streambridge-0.2.4-windows-x64-setup.exe";
-inline constexpr auto assetUrl = L"https://github.com/AugustusNobilis/StreamBridge/releases/download/v0.2.4/"
-                                 L"obs-streambridge-0.2.4-windows-x64-setup.exe";
+inline constexpr auto version = L"0.2.5";
+inline constexpr auto assetName = L"obs-streambridge-0.2.5-windows-x64-setup.exe";
+inline constexpr auto assetUrl = L"https://github.com/AugustusNobilis/StreamBridge/releases/download/v0.2.5/"
+                                 L"obs-streambridge-0.2.5-windows-x64-setup.exe";
 struct Failure {
     std::wstring message;
 };

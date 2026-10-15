@@ -18,7 +18,7 @@ $zip = [IO.Compression.ZipFile]::OpenRead("$Dist/obs-streambridge-$version-windo
 try {
     $names = @($zip.Entries.FullName)
     if ('data/obs-plugins/obs-streambridge/streambridge-update-helper.exe' -notin $names) { throw 'Missing native restart helper' }
-    foreach ($required in @('data/obs-plugins/obs-streambridge/qt-plugins/tls/qschannelbackend.dll','data/obs-plugins/obs-streambridge/qt-plugins/LICENSE.GPL2')) {
+    foreach ($required in @('data/obs-plugins/obs-streambridge/qt-plugins/imageformats/qgif.dll','data/obs-plugins/obs-streambridge/qt-plugins/tls/qschannelbackend.dll','data/obs-plugins/obs-streambridge/qt-plugins/LICENSE.GPL2')) {
         if ($required -notin $names) { throw "Missing TLS runtime/license: $required" }
     }
     $tls = $zip.GetEntry('data/obs-plugins/obs-streambridge/qt-plugins/tls/qschannelbackend.dll').Open()
@@ -29,7 +29,7 @@ try {
     foreach ($required in @('obs-plugins/64bit/obs-streambridge.dll','data/obs-plugins/obs-streambridge/browser/streambridge-browser.exe','data/obs-plugins/obs-streambridge/browser/streambridge-browser.dll','data/obs-plugins/obs-streambridge/browser/libcef.dll','data/obs-plugins/obs-streambridge/browser/CEF-LICENSE.txt','data/obs-plugins/obs-streambridge/browser/CHROMIUM-CREDITS.html','data/obs-plugins/obs-streambridge/docs/TEST-RESULTS.md')) {
         if ($required -notin $names) { throw "Missing binary ZIP entry: $required" }
     }
-    foreach ($pair in @(@('obs-plugins/64bit/obs-streambridge.dll','build/Release/obs-streambridge.dll'),@('data/obs-plugins/obs-streambridge/browser/streambridge-browser.dll','build-helper/Release/streambridge-browser.dll'))) {
+    foreach ($pair in @(@('data/obs-plugins/obs-streambridge/qt-plugins/imageformats/qgif.dll','.deps/obs-deps-qt6-2025-08-23-x64/plugins/imageformats/qgif.dll'),@('obs-plugins/64bit/obs-streambridge.dll','build/Release/obs-streambridge.dll'),@('data/obs-plugins/obs-streambridge/browser/streambridge-browser.dll','build-helper/Release/streambridge-browser.dll'))) {
         $stream = $zip.GetEntry($pair[0]).Open()
         $sha = [Security.Cryptography.SHA256]::Create()
         try { $hash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','') } finally { $sha.Dispose(); $stream.Dispose() }

@@ -371,25 +371,35 @@ int main(int argc, char **argv) {
         ban.callback({200, {}, false});
         require(removed == 1, "successful moderation updates local chat");
         unsigned messages = 0;
-        QObject::connect(&hub, &PlatformHub::messageReceived, [&](const ChatMessage &) { ++messages; });
+        ChatMessage lastMessage;
+        QObject::connect(&hub, &PlatformHub::messageReceived, [&](const ChatMessage &m) {
+            ++messages;
+            lastMessage = m;
+        });
         hub.setChatEnabled(true);
         yh.answer(200, video());
         QCoreApplication::processEvents();
         auto chatRequest = yh.take();
         require(chatRequest.url.path().endsWith("/liveChat/messages"),
                 "YouTube chat uses the selected active chat");
-        const QJsonObject chatItem{
-            {"id", "chat-message"},
-            {"snippet", QJsonObject{{"type", "textMessageEvent"},
-                                    {"displayMessage", "Hello"},
-                                    {"publishedAt", "2026-10-14T12:00:00Z"}}},
-            {"authorDetails", QJsonObject{{"channelId", "reader"}, {"displayName", "Reader"}}}};
+        const QJsonObject chatItem{{"id", "chat-message"},
+                                   {"snippet", QJsonObject{{"type", "textMessageEvent"},
+                                                           {"displayMessage", "Hello"},
+                                                           {"publishedAt", "2026-10-14T12:00:00Z"}}},
+                                   {"authorDetails", QJsonObject{{"channelId", "reader"},
+                                                                 {"displayName", "Reader"},
+                                                                 {"isChatOwner", true},
+                                                                 {"isChatModerator", true},
+                                                                 {"isVerified", true}}}};
         chatRequest.callback({200,
                               {{"items", QJsonArray{chatItem, chatItem}},
                                {"nextPageToken", "next"},
                                {"pollingIntervalMillis", 60000}},
                               false});
         require(messages == 1, "duplicate YouTube chat IDs are suppressed");
+        require(lastMessage.badges.contains("owner") && lastMessage.badges.contains("moderator") &&
+                    lastMessage.badges.contains("verified"),
+                "YouTube role flags survive chat delivery");
         QCoreApplication::processEvents();
         require(yh.calls.empty(), "server polling interval prevents immediate repeat");
         hub.setChatEnabled(false);
@@ -455,6 +465,48 @@ int main(int argc, char **argv) {
         require(twBan.method == "POST" && twBan.body["data"].toObject()["user_id"] == "tw-user",
                 "Twitch ban targets exact selected user");
         twBan.callback({200, {}, false});
+        QString followerState;
+        QDateTime followed;
+        QObject::connect(&hub, &PlatformHub::followerReady,
+                         [&](int, QString, QString state, QDateTime since) {
+                             followerState = state;
+                             followed = since;
+                         });
+        hub.lookupFollower(twitchMessage);
+        require(followerState == "FollowReconnect" && th.calls.empty(),
+                "follower lookup requests new permission without guessing missing dates");
+        hub.lookupFollower(message);
+        require(followerState == "FollowYouTubeUnavailable",
+                "YouTube subscription date is explicitly unavailable");
+        twitch.disconnectAccount();
+        ta.answer(200);
+        auto newScopes = twitchSession["scopes"].toArray();
+        newScopes.append("moderator:read:followers");
+        twitchSession["scopes"] = newScopes;
+        require(vault.put("Twitch/oauth", QJsonDocument(twitchSession).toJson(), error),
+                "updated follower scope fixture saved");
+        twitch.resume();
+        ta.answer(200, {{"client_id", "twitch-client"},
+                        {"user_id", "owner"},
+                        {"login", "owner"},
+                        {"scopes", newScopes}});
+        th.answer(200, {{"data", QJsonArray{}}});
+        th.answer(200, {{"data", QJsonArray{}}});
+        hub.lookupFollower(twitchMessage);
+        auto follow = th.take();
+        require(follow.url.path().endsWith("channels/followers") &&
+                    QUrlQuery(follow.url).queryItemValue("user_id") == "tw-user",
+                "follower lookup targets clicked user on authorized channel");
+        follow.callback({200,
+                         {{"data", QJsonArray{QJsonObject{{"user_id", "tw-user"},
+                                                          {"followed_at", "2024-01-02T12:00:00Z"}}}}},
+                         false});
+        require(followerState == "FollowSince" && followed.date() == QDate(2024, 1, 2),
+                "following date parsed from Twitch response");
+        hub.lookupFollower(twitchMessage);
+        th.answer(200, {{"data", QJsonArray{}}});
+        require(followerState == "FollowNotFollowing",
+                "empty follower response is distinguished from permission errors");
         hub.refresh();
         auto stale = yh.take();
         youtube.disconnectAccount();

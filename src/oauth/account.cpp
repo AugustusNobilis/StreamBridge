@@ -8,7 +8,8 @@
 namespace sb {
 static const QString twitchScope = "channel:read:stream_key";
 static const QString twitchScopes = "channel:read:stream_key channel:manage:broadcast chat:read "
-                                    "moderator:manage:chat_messages moderator:manage:banned_users";
+                                    "moderator:manage:chat_messages moderator:manage:banned_users "
+                                    "moderator:read:followers";
 static const QString youtubeScope = "https://www.googleapis.com/auth/youtube.force-ssl";
 GoogleDesktopClient parseGoogleDesktopClient(const QByteArray &json, QString &error) {
     error = "OAuthGoogleDesktopRequired";

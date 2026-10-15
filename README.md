@@ -4,7 +4,7 @@
 
 Бесплатный плагин для OBS Studio, который позволяет одновременно вести трансляции на **YouTube и Twitch**, читать сообщения обеих площадок в одном чате и управлять эфиром YouTube прямо в OBS.
 
-**[Скачать StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4)** · [Настроить YouTube](docs/YOUTUBE-SETUP.ru.md) · [Настроить Twitch](docs/TWITCH-SETUP.ru.md)
+**[Скачать StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.5)** · [Настроить YouTube](docs/YOUTUBE-SETUP.ru.md) · [Настроить Twitch](docs/TWITCH-SETUP.ru.md)
 
 ### Возможности
 
@@ -17,10 +17,10 @@
 
 ### 1. Скачайте и установите
 
-Текущая сборка **0.2.4 — предварительная**, для **Windows x64 и OBS Studio 32 с Qt 6.8**. OBS нужно установить отдельно; поддерживается также portable-версия.
+Текущая сборка **0.2.5 — предварительная**, для **Windows x64 и OBS Studio 32 с Qt 6.8**. OBS нужно установить отдельно; поддерживается также portable-версия.
 
-1. Откройте [страницу версии 0.2.4](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4) и разверните список **Assets** внизу.
-2. Если устанавливаете плагин впервые, скачайте **obs-streambridge-0.2.4-windows-x64-setup.exe**. Для обновления уже установленного плагина можно скачать **updater.exe**.
+1. Откройте [страницу версии 0.2.5](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.5) и разверните список **Assets** внизу.
+2. Если устанавливаете плагин впервые, скачайте **obs-streambridge-0.2.5-windows-x64-setup.exe**. Для обновления уже установленного плагина можно скачать **updater.exe**.
 3. Закройте OBS. Запустите скачанный файл.
 4. Укажите **корневую папку OBS**, внутри которой находится **bin → 64bit → obs64.exe**. Например, **C:\Program Files\obs-studio**. Не выбирайте саму папку bin или obs-plugins.
 5. Дождитесь завершения установки и откройте OBS.
@@ -68,8 +68,11 @@
 
 ### 5. Пользуйтесь чатом и управлением эфиром
 
-- Включите **Подключить чат** в панели **StreamBridge — Чат**. Сообщения YouTube имеют мягкий красный фон, Twitch — фиолетовый. Правая кнопка открывает копирование, удаление и блокировку при наличии прав.
-- **Тихий звук новых сообщений** включается отдельным флажком и запоминается. По умолчанию он выключен, история приходит без звука, частые сообщения не создают очередь сигналов. Звук может попасть в захват рабочего стола.
+- Чаты подключаются автоматически после привязки аккаунтов; при старте потока плагин обновляет подключение. В панели **StreamBridge — Чат** показаны статусы Online / Offline / Error с кодом. Подробности — при наведении. Кнопка со стрелкой переподключает чаты.
+- Сообщения YouTube выделены красным, Twitch — фиолетовым; ник жирный, рядом значки ролей. Нажмите на ник, чтобы открыть карточку. Для даты отслеживания Twitch один раз переподключите аккаунт и разрешите чтение отслеживающих канал. YouTube такую дату через API не предоставляет.
+- Смайлики Twitch и глобальные/канальные BetterTTV, включая анимированные GIF, поддерживаются автоматически. Прямые GIF-ссылки отображаются с media.tenor.com и медиа-серверов Giphy; обычные ссылки на страницы не являются GIF. Правая кнопка сообщения открывает копирование, удаление и бан при наличии прав.
+- Откройте **Настройки StreamBridge → Настройки**. Здесь можно отключить автоподключение, выбрать **Выключен**, **Astra (по умолчанию)** или **Свой звук с компьютера**, настроить громкость и прослушать сигнал. Свой файл: PCM WAV, 8/16 бит, моно/стерео, 8–96 кГц, до 10 секунд и 4 МБ. Настройки применяются сразу.
+- Astra — прежний мягкий сигнал с удвоенной амплитудой. Звук по умолчанию выключен, история без звука; между уведомлениями не меньше 1,5 секунды. Звук может попасть в захват рабочего стола. Журнал доступен через **О плагине → Открыть журнал**.
 - Выбранный эфир YouTube сохраняется. Если он отсутствует или завершён, плагин ищет активный эфир; при нескольких вариантах выберите нужный в настройках YouTube. Во время отправки видео выбор меняет только отслеживание чата и зрителей.
 - **Зрители:** серый счётчик — 0, приглушённый красный — 1 и больше. «0*» означает, что YouTube не передал число: возможны ноль зрителей или скрытая статистика. **—** означает недоступные данные. Наведите указатель для статуса и названия выбранного эфира.
 - **Завершить эфир YouTube** в основной панели завершает эфир после подтверждения и останавливает только выход YouTube. Twitch продолжает работать. Завершённый эфир нельзя возобновить.
@@ -114,7 +117,7 @@
 
 A free OBS Studio plugin for streaming to **YouTube and Twitch** at the same time, reading both platforms in one chat and controlling YouTube broadcasts inside OBS.
 
-**[Download StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4)** · [Set up YouTube](docs/YOUTUBE-SETUP.en.md) · [Set up Twitch](docs/TWITCH-SETUP.en.md)
+**[Download StreamBridge](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.5)** · [Set up YouTube](docs/YOUTUBE-SETUP.en.md) · [Set up Twitch](docs/TWITCH-SETUP.en.md)
 
 ### Features
 
@@ -127,10 +130,10 @@ A free OBS Studio plugin for streaming to **YouTube and Twitch** at the same tim
 
 ### 1. Download and install
 
-The current **0.2.4 preview** targets **Windows x64 and OBS Studio 32 with Qt 6.8**. Install OBS separately; portable installations are also supported.
+The current **0.2.5 preview** targets **Windows x64 and OBS Studio 32 with Qt 6.8**. Install OBS separately; portable installations are also supported.
 
-1. Open the [0.2.4 release page](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.4) and expand **Assets** at the bottom.
-2. For a first installation, download **obs-streambridge-0.2.4-windows-x64-setup.exe**. To update an existing plugin, you can use **updater.exe**.
+1. Open the [0.2.5 release page](https://github.com/AugustusNobilis/StreamBridge/releases/tag/v0.2.5) and expand **Assets** at the bottom.
+2. For a first installation, download **obs-streambridge-0.2.5-windows-x64-setup.exe**. To update an existing plugin, you can use **updater.exe**.
 3. Close OBS and run the downloaded file.
 4. Select the **OBS root folder** containing **bin → 64bit → obs64.exe**, for example **C:\Program Files\obs-studio**. Do not select bin or obs-plugins itself.
 5. Wait for installation to finish, then open OBS.
@@ -178,8 +181,11 @@ StreamBridge controls its own outputs independently of OBS's main streaming butt
 
 ### 5. Use chat and broadcast controls
 
-- Enable **Connect chat** in **StreamBridge — Chat**. YouTube messages have a soft red background and Twitch messages a purple one. Right-click for copying, deletion or banning when authorized.
-- **Quiet sound for new messages** is optional and remembered. It is off by default, history is silent, and rapid messages do not queue sounds. Desktop audio capture may include the sound.
+- Chats connect automatically once accounts are linked and refresh when a stream starts. **StreamBridge — Chat** shows Online / Offline / Error with a code; hover for details and use the arrow button to reconnect.
+- YouTube rows are red-tinted, Twitch rows purple, with bold names and role badges. Click a name for its user card. To see Twitch follow dates, reconnect Twitch once and grant follower access. YouTube does not expose this date through its API.
+- Twitch and global/channel BetterTTV emotes, including animated GIFs, are automatic. Direct GIF links support media.tenor.com and Giphy media hosts; ordinary page links are not GIFs. Right-click a message for copying, deletion or banning when authorized.
+- Open **StreamBridge settings → Settings** to toggle automatic connection, choose **Off**, **Astra (default)** or **Local sound file**, set volume and preview. Local files support PCM WAV, 8/16-bit mono/stereo, 8–96 kHz, up to 10 seconds and 4 MB. Changes apply immediately.
+- Astra retains the original soft melody at twice the amplitude. Sound is off by default, history is silent and notifications are spaced at least 1.5 seconds apart. Desktop Audio may capture it. Find the log under **About → Open log**.
 - The selected YouTube broadcast is remembered. If missing or completed, the plugin looks for an active broadcast; choose explicitly in YouTube settings when there are multiple candidates. During video transmission, selection changes monitoring only.
 - **Viewers:** grey means zero, muted red means one or more. «0*» means YouTube omitted the count: it may be zero or hidden. A dash means unavailable data. Hover for status and the selected broadcast title.
 - **End YouTube broadcast** in the main dock ends the broadcast after confirmation and stops only the YouTube output. Twitch continues. Completed broadcasts cannot be resumed.

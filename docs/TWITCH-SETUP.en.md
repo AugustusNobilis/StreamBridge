@@ -62,8 +62,8 @@ Connecting an account does not start a broadcast. The Twitch control in StreamBr
 ## 6. Enable chat
 
 1. Enable **StreamBridge — Chat** in OBS's **Docks** menu.
-2. Check **Connect chat** and wait for the Twitch status.
-3. Twitch messages have a soft purple background. Optionally enable **Quiet sound for new messages**; it is off by default.
+2. Chat connects automatically. Wait for green **Twitch · Online**. Hover over errors for details; use the arrow button to reconnect.
+3. Twitch rows have purple backgrounds, bold names and role badges. Twitch and BetterTTV emotes, including GIFs, load automatically. Click a name for a user card: follow dates require reconnecting Twitch with `moderator:read:followers`. Set sound under **StreamBridge settings → Settings**: off, Astra or a local PCM WAV, with volume and preview controls.
 4. Right-click a message for moderation. Channel-owner permissions are required.
 
 The separate information dock has been removed. Edit title, description, category and notifications in the [Twitch dashboard](https://dashboard.twitch.tv/).
@@ -78,7 +78,7 @@ The separate information dock has been removed. Edit title, description, categor
 | The code expired | Cancel the attempt and connect again. Use the new code. |
 | OBS settings closed during sign-in | Start the connection again and keep settings open until it finishes. |
 | The wrong channel connected | Disconnect in StreamBridge, switch accounts on Twitch and connect again. |
-| Chat does not load | Check the connected channel and **Connect chat**. Read the Twitch status above the messages. |
+| Chat does not load | Check the connected channel and **Connect chats automatically** under **Settings**. Read the Twitch status above the messages. |
 | Moderation is unavailable after an update | Reconnect to grant current permissions. The account must also have rights to perform the action. |
 | Video does not start | Retrieve the key with **Use this account's stream key**, save settings and check the output status in the main dock. |
 

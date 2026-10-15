@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Production widgets rendered with synthetic data and no platform network access.
+#include "ui/chat-settings.hpp"
+#include "ui/chat-view.hpp"
 #include "ui/dock.hpp"
 #include "ui/platform-docks.hpp"
 #include "ui/settings.hpp"
@@ -8,16 +10,21 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
+#include <QSlider>
 #include <QTabWidget>
 #include <QTemporaryDir>
+#include <QThread>
+#include <QToolButton>
 #include <QtEndian>
 #include <iostream>
 #include <stdexcept>
@@ -102,10 +109,26 @@ int main(int argc, char **argv) {
                 require(main->findChild<QPushButton *>("youtubeGoLive") &&
                             main->findChild<QPushButton *>("youtubeEndLive"),
                         "YouTube lifecycle controls moved to the main dock");
-                emit hub.messageReceived({0, "demo-y", "viewer-a", "Алексей", "Привет! Отлично слышно.",
-                                          "demo", QDateTime::currentDateTime(), false});
-                emit hub.messageReceived({1, "demo-t", "viewer-b", "Nora", "Hello from Twitch 👋", "demo",
-                                          QDateTime::currentDateTime(), false});
+                emit hub.messageReceived({0,
+                                          "demo-y",
+                                          "viewer-a",
+                                          "Алексей",
+                                          "Привет! Отлично слышно.",
+                                          "demo",
+                                          QDateTime::currentDateTime(),
+                                          false,
+                                          true,
+                                          {"owner", "verified"}});
+                emit hub.messageReceived({1,
+                                          "demo-t",
+                                          "viewer-b",
+                                          "Nora",
+                                          "Hello from Twitch 👋",
+                                          "demo",
+                                          QDateTime::currentDateTime(),
+                                          false,
+                                          true,
+                                          {"moderator/1", "vip/1"}});
                 emit hub.messageReceived({0, "demo-plain", "viewer-c", "<b>plain text</b>",
                                           "<script>never executed</script>", "demo",
                                           QDateTime::currentDateTime(), false});
@@ -113,22 +136,25 @@ int main(int argc, char **argv) {
                 require(list && list->count() == 3 && !list->item(0)->icon().isNull() &&
                             list->item(2)->text().contains("<script>"),
                         "mixed chat has platform icons and plain-text content");
-                require(list->item(0)->background().color().alpha() == 32 &&
-                            list->item(1)->background().color().alpha() == 34 &&
-                            list->item(0)->background().color().red() >
-                                list->item(0)->background().color().blue(),
-                        "chat rows use translucent platform colors");
-                auto *sound = chat->findChild<QCheckBox *>("chatSound");
-                require(sound && !sound->isChecked() && notifications == 0, "chat sound is off by default");
-                sound->setChecked(true);
+                auto preferences = sb::chatPreferences(directory.path());
+                require(preferences->sound() == "off" && notifications == 0, "sound is off by default");
+                require(chat->findChildren<QCheckBox *>().isEmpty() &&
+                            chat->findChild<QToolButton *>("chatReconnect"),
+                        "dock contains compact status and icon controls, no settings checkboxes");
+                require(hub.chatEnabled(), "chat connects automatically without a dock click");
+                preferences->set("soundMode", "astra");
                 emit hub.messageReceived({0, "history", "viewer-a", "User", "Old", "demo", {}, false, false});
                 require(notifications == 0, "chat history remains silent");
                 emit hub.messageReceived({0, "fresh", "viewer-a", "User", "New", "demo", {}, false, true});
                 emit hub.messageReceived({1, "burst", "viewer-a", "User", "New", "demo", {}, false, true});
                 require(notifications == 1, "new-message sound is throttled across platforms");
-                QSettings preferences(directory.path() + "/ui.ini", QSettings::IniFormat);
-                require(preferences.value("chat/sound").toBool(), "sound preference is persisted");
-                sound->setChecked(false);
+                QSettings saved(directory.path() + "/ui.ini", QSettings::IniFormat);
+                require(saved.value("chat/soundMode").toString() == "astra", "sound preference is persisted");
+                preferences->set("soundMode", "off");
+                preferences->set("autoConnect", false);
+                require(!hub.chatEnabled(), "automatic connection can be disabled immediately");
+                preferences->set("autoConnect", true);
+                list->setStyleSheet("QListWidget::item { background: #26282f; color: white; }");
                 canvas.resize(650, 730);
                 QApplication::processEvents();
                 badge = 0;
@@ -136,6 +162,13 @@ int main(int argc, char **argv) {
                     if (auto *viewer = dynamic_cast<sb::ViewerBadge *>(widget))
                         viewer->setCount(badge++ == 0 ? 0 : 12);
                 render(canvas, images + "/docks-" + locale + ".png");
+                const auto pixels = list->viewport()->grab().toImage();
+                const auto youtubePixel = pixels.pixelColor(list->viewport()->width() - 8,
+                                                            list->visualItemRect(list->item(0)).center().y());
+                const auto twitchPixel = pixels.pixelColor(list->viewport()->width() - 8,
+                                                           list->visualItemRect(list->item(1)).center().y());
+                require(youtubePixel.red() > youtubePixel.blue() && twitchPixel.blue() > twitchPixel.red(),
+                        "rendered platform backgrounds survive overriding OBS item styles");
                 for (int i = 0; i < 510; ++i)
                     emit hub.messageReceived(
                         {0, QString::number(i), "viewer-a", "User", "Test", "demo", {}, false});
@@ -145,11 +178,11 @@ int main(int argc, char **argv) {
                 sb::Settings settings(manager);
                 settings.resize(720, 760);
                 auto *tabs = settings.findChild<QTabWidget *>();
-                require(tabs && tabs->count() == 7,
-                        "settings contain platform, encoding, help, logs, updates and about tabs");
-                require(tabs->widget(5)->findChildren<QPushButton *>().size() == 1,
+                require(tabs && tabs->count() == 6 && settings.findChild<QPushButton *>("openLogs"),
+                        "settings have six tabs and logs open from About");
+                require(tabs->widget(4)->findChildren<QPushButton *>().size() == 1,
                         "updates tab offers one primary action");
-                for (int tab : {0, 1, 3, 5, 6}) {
+                for (int tab : {0, 1, 3, 4, 5}) {
                     tabs->setCurrentIndex(tab);
                     render(settings, images + "/settings-" + locale + "-" + QString::number(tab) + ".png");
                 }
@@ -159,10 +192,82 @@ int main(int argc, char **argv) {
             for (int i = 44; i < wave.size(); i += 2)
                 peak = std::max(peak,
                                 std::abs(static_cast<int>(qFromLittleEndian<qint16>(wave.constData() + i))));
-            require(wave.startsWith("RIFF") && wave.size() == 7724 && peak > 0 && peak <= 900 &&
-                        qFromLittleEndian<qint16>(wave.constData() + 44) == 0 &&
+            require(wave.startsWith("RIFF") && wave.size() == 7724 && peak > 0 && peak > 900 &&
+                        peak <= 1800 && qFromLittleEndian<qint16>(wave.constData() + 44) == 0 &&
                         qFromLittleEndian<qint16>(wave.constData() + wave.size() - 2) == 0,
                     "notification PCM is short, quiet and fades in and out without clipping");
+            require(sb::streamDuration(0) == "00:00:00" && sb::streamDuration(3661) == "01:01:01" &&
+                        sb::streamDuration(360001) == "100:00:01",
+                    "duration shows hours/minutes/seconds without a 24-hour rollover");
+            QString soundError;
+            const auto silent = sb::chatSoundWave({}, 0, soundError);
+            require(soundError.isEmpty() && silent.mid(44) == QByteArray(silent.size() - 44, '\0'),
+                    "sound volume scales PCM without changing system volume");
+            QFile wav(directory.path() + "/sound.wav");
+            require(wav.open(QIODevice::WriteOnly) && wav.write(wave) == wave.size(),
+                    "custom WAV fixture saved");
+            wav.close();
+            require(sb::chatSoundWave(wav.fileName(), 100, soundError) == wave,
+                    "local custom PCM WAV retains original melody");
+            require(sb::chatSoundWave(directory.path() + "/missing.wav", 100, soundError).isEmpty(),
+                    "missing custom sound fails without fallback beep");
+            sb::ChatMessage rich{1,   "e", "u", "<img src=file:///secret>", "😀 Kappa <script>x</script>",
+                                 "r", {}};
+            rich.emotes = "25:2-6";
+            const auto html = sb::chatBodyHtml(rich, {});
+            require(html.contains("emoticons/v2/25/default/dark/1.0") && html.contains("&lt;script&gt;") &&
+                        html.startsWith("😀 "),
+                    "Twitch emote codepoint offsets preserve emoji and escape untrusted text");
+            rich.text = "Dance";
+            rich.emotes.clear();
+            require(sb::chatBodyHtml(rich, {{"Dance", "https://cdn.betterttv.net/emote/123/2x"}})
+                        .contains("<img"),
+                    "BetterTTV channel codes render inline");
+            require(!sb::allowedChatImage(QUrl("file:///secret")) &&
+                        !sb::allowedChatImage(QUrl("https://127.0.0.1/a.gif")) &&
+                        !sb::allowedChatImage(QUrl("https://media.tenor.com.evil.test/a.gif")) &&
+                        sb::allowedChatImage(QUrl("https://media.tenor.com/test.gif")),
+                    "chat media rejects local files and untrusted network hosts");
+            sb::ChatMedia media;
+            const QUrl gifUrl("https://cdn.betterttv.net/emote/fixture/2x");
+            const auto gif = QByteArray::fromHex(
+                "47494638396104000400810000ff000000000000000000000021ff0b4e45545343415045322e30030100000021f9"
+                "04000a0000002c00000000040004000008090001081c48b02080800021f904010a0001002c000000000400040081"
+                "0000ff00000000000000000008090001081c48b0208080003b");
+            require(media.cacheImage(gifUrl, gif), "production image cache decodes bounded GIF fixture");
+            const auto firstFrame = media.image(gifUrl);
+            QElapsedTimer animation;
+            animation.start();
+            bool advancedFrame = false;
+            while (animation.elapsed() < 1000 && !advancedFrame) {
+                QApplication::processEvents();
+                QThread::msleep(10);
+                advancedFrame = media.image(gifUrl) != firstFrame;
+            }
+            require(advancedFrame, "GIF advances frames through the production cache");
+            require(!media.cacheImage(QUrl("https://127.0.0.1/a.gif"), gif) &&
+                        !media.cacheImage(gifUrl, "<svg/>"),
+                    "media decoder rejects local targets and unsupported image content");
+            QWidget viewParent;
+            sb::ChatView clickView(media, &viewParent);
+            clickView.setFixedSize(300, 180);
+            clickView.setAttribute(Qt::WA_DontShowOnScreen);
+            unsigned clicks = 0;
+            QObject::connect(&clickView, &sb::ChatView::authorClicked, [&](const sb::ChatMessage &m) {
+                if (m.userId == "clicked")
+                    ++clicks;
+            });
+            clickView.append({0, "click", "clicked", "Name", "Content", "room", {}});
+            clickView.show();
+            QApplication::processEvents();
+            const QPointF point(45, 18);
+            QMouseEvent press(QEvent::MouseButtonPress, point, point, Qt::LeftButton, Qt::LeftButton,
+                              Qt::NoModifier);
+            QMouseEvent release(QEvent::MouseButtonRelease, point, point, Qt::LeftButton, Qt::NoButton,
+                                Qt::NoModifier);
+            QApplication::sendEvent(clickView.viewport(), &press);
+            QApplication::sendEvent(clickView.viewport(), &release);
+            require(clicks == 1, "clicking a rendered nickname opens that author's card");
             QString configError;
             auto customConfig = manager.config();
             customConfig.endpoints[0].server = "rtmps://b.rtmps.youtube.com:443/live2?backup=1";

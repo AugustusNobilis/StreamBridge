@@ -1,4 +1,4 @@
-# Platform controls (0.2.4)
+# Platform controls (0.2.5)
 
 OBS registers two docks: StreamBridge and StreamBridge — Chat. The separate stream information dock is removed. YouTube lifecycle controls live in the main YouTube section; metadata editing opens the selected broadcast in Studio.
 
@@ -12,11 +12,17 @@ Counts accept nonnegative integer JSON numbers and digit strings. A missing coun
 
 ## Chat
 
-YouTube uses liveChat/messages; Twitch uses authenticated IRC over TLS. Rows have translucent red/purple backgrounds, platform icons and plain-text content. History is bounded to 500 displayed messages and never logged to disk. Moderation uses exact message/user/room IDs and confirms destructive actions.
+YouTube uses liveChat/messages; Twitch uses authenticated IRC over TLS. A custom Qt delegate paints translucent red/purple backgrounds independently of OBS item styles. Names are bold platform colors and clickable. Twitch badges use the authenticated global/channel badge catalog and provider artwork; YouTube exposes owner/moderator/member/verified flags but no badge-image URLs, so these use locally drawn role symbols. Untrusted message text is escaped before rich rendering. History is bounded to 500 displayed messages and never logged to disk. Moderation uses exact message/user/room IDs and confirms destructive actions.
 
 Temporary YouTube network failures, HTTP 5xx and rate limiting retry with bounded backoff. Missing/ended chat IDs trigger fresh broadcast metadata; disabled chat and permission/quota errors are reported separately. Account or broadcast changes invalidate pending responses.
 
-The optional quiet sound defaults off and is saved in ui.ini. A locally synthesized 160 ms mono PCM tone has a faded envelope and peak amplitude below -31 dBFS; Windows session/system volume still applies. History is silent; new messages share a 1.5-second cooldown. No media downloads, global volume changes or Qt Multimedia dependency are required. Desktop audio capture can include the notification.
+Chats connect automatically for linked accounts and refresh on stream start; this can be disabled under Settings. The dock shows compact Online/Offline/Error states, HTTP/network codes, detailed tooltips and an icon reconnect button. The log moved to an About button. Uptime is HH:MM:SS and can exceed 24 hours.
+
+Settings offers Off, Astra (default melody) and a local PCM WAV, a 0–100% volume slider and preview. Astra retains its 160 ms envelope/frequencies with twice the former amplitude (peak below -25 dBFS). WAV supports 8/16-bit mono/stereo, 8–96 kHz, up to 10 seconds/4 MB. Windows waveOut receives sample-scaled audio; no global volume is changed. History remains silent and notifications share a 1.5-second cooldown; a playing custom clip is not overlapped. Desktop Audio can capture playback. Preferences are applied immediately and persist in ui.ini; old sound preferences migrate. Sound stays off by default.
+
+Clicking a Twitch name requests channels/followers for that exact user and authorized broadcaster. Older accounts must reconnect to grant moderator:read:followers; permission failure is distinct from not following. YouTube does not provide this date for arbitrary chat viewers.
+
+Twitch IRC emote ranges are interpreted as Unicode codepoint offsets. BetterTTV global and channel/shared emotes load from its public API. Twitch and BetterTTV animated GIFs use Qt's GIF decoder with bounded buffers. Direct GIF URLs support media.tenor.com and Giphy media hosts, not arbitrary URLs or provider page links. Images are limited to PNG/GIF, 512×512 source dimensions and 2 MB; catalogs to 1 MB/4,000 emotes; four concurrent anonymous downloads, a bounded queue and a 16 MB cost-based cache. Verified HTTPS, fixed provider/media hosts, no redirects or local-file resources, and escaped text prevent message-driven arbitrary resource loading. Failed media retain readable emote text; the reconnect icon retries. GIF decoding works offline with fixtures; remote CDN availability depends on the user's network.
 
 ## Lifecycle, security and validation
 
@@ -33,3 +39,7 @@ Real-account reception and provider-specific failures require user acceptance. A
 - [YouTube viewer count semantics](https://developers.google.com/youtube/v3/docs/videos#liveStreamingDetails.concurrentViewers)
 - [YouTube live chat messages](https://developers.google.com/youtube/v3/live/docs/liveChatMessages/list)
 - [Twitch IRC](https://dev.twitch.tv/docs/chat/irc)
+
+- [Twitch follower API and required scope](https://dev.twitch.tv/docs/api/reference/#get-channel-followers)
+- [Twitch badges](https://dev.twitch.tv/docs/chat/send-receive-messages#chat-badges)
+- [BetterTTV API](https://betterttv.com/developers)

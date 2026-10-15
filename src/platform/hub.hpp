@@ -13,6 +13,8 @@ struct ChatMessage {
     QDateTime time;
     bool moderatable = true;
     bool notify = true;
+    QStringList badges;
+    QString emotes;
 };
 struct ChannelInfo {
     qint64 viewers = -1;
@@ -34,6 +36,10 @@ class PlatformHub : public QObject {
     OAuthAccount &account(int platform) const { return *accounts_.at(platform); }
     QString status(int platform) const { return status_.at(platform); }
     QString chatStatus(int platform) const { return chatStatus_.at(platform); }
+    QString chatError(int platform) const { return chatErrors_.at(platform); }
+    bool chatEnabled() const { return chatEnabled_; }
+    void loadChatBadges();
+    void lookupFollower(const ChatMessage &message);
     bool pending(int platform) const { return working_.at(platform) || !queue_.at(platform).empty(); }
     void refresh();
     void setChatEnabled(bool enabled);
@@ -54,6 +60,8 @@ class PlatformHub : public QObject {
     void categoriesReady(int platform, QList<sb::Category> categories);
     void saved(int platform);
     void youtubeBroadcastEnded();
+    void chatBadgesReady(QJsonObject catalog);
+    void followerReady(int platform, QString user, QString status, QDateTime since);
 
   private:
     using Callback = HttpClient::Callback;
@@ -85,6 +93,10 @@ class PlatformHub : public QObject {
     std::array<HttpClient *, 2> http_;
     std::array<ChannelInfo, 2> info_;
     std::array<QString, 2> identity_, status_;
+    std::array<QString, 2> chatErrors_;
+    QString badgesIdentity_;
+    QJsonObject badgeCatalog_;
+    QSet<QString> followersPending_;
     std::array<QString, 2> chatStatus_{"ChatDisabled", "ChatDisabled"};
     std::array<std::deque<Job>, 2> queue_;
     std::array<bool, 2> working_{};

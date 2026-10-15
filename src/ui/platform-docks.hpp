@@ -20,6 +20,7 @@ class ViewerBadge : public QWidget {
     QString displayCount() const;
 };
 QByteArray chatNotificationWave();
+QString streamDuration(qint64 seconds);
 QWidget *createChatDock(PlatformHub &hub, const QString &directory, std::function<void()> notify = {});
 QWidget *createYouTubeControls(PlatformHub &hub, QWidget *parent);
 } // namespace sb

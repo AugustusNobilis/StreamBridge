@@ -1,4 +1,12 @@
 # Executed validation
+## Chat interface and settings 0.2.5 / 2026-10-15
+
+All nine CTest suites passed after the final implementation (40.91 seconds total). The UI suite verifies the rendered platform colors under an OBS-style overriding item stylesheet, clickable nickname hit-testing, six settings tabs, automatic connection toggling, persistent sound options, silent history/throttling, doubled Astra amplitude, local PCM WAV validation and volume scaling. Uptime tests include more than 24 hours. A bounded two-frame GIF advances through the production image cache; local/untrusted URLs and unsupported image data are rejected. Twitch emote parsing covers non-BMP Unicode and escaped HTML. Layout caching keeps the UI suite at 1.80 seconds with 500-message history tests.
+
+Provider fixtures cover YouTube role flags, Twitch following-date requests and missing-permission/not-following outcomes, alongside existing chat recovery, viewer, persistence and lifecycle regressions. These are synthetic responses; no real account or live event was modified. Public read-only probes reached the BetterTTV catalog (HTTP 200) and Twitch emote CDN (HTTP 200 image/png); BetterTTV's image CDN timed out in this network through both Python TLS and Windows curl. Local GIF playback passed; remote animated-emote reception is not claimed as an end-to-end pass.
+
+Production Russian and English widgets were rendered, with Russian docks and Settings visually reviewed. A dedicated portable OBS passed production dock/browser loading, real loopback RTMP media, coexistence with two instrumented outputs, independent stops and clean shutdown. Personal OBS was left untouched. Audio waveform properties are tested; perceived volume on a user's speakers is not measured.
+
 ## YouTube persistence and chat recovery 0.2.4 / 2026-10-14
 
 All nine CTest suites passed during this change. OAuth, platform and UI suites were rerun after their final fixes. Regression cases cover the official backup URL, immediate server/key saving, preserving custom routes when applying a broadcast key, saved selection across dialog reopen/restart/token rotation, and keeping session maintenance alive after cancelling a pending settings request.

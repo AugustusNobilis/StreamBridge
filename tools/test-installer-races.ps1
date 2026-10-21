@@ -45,6 +45,13 @@ try {
         New-Item -ItemType Directory -Force "$config/updates/update-random" | Out-Null
         Set-Content "$config/vault.dpapi" 'SYNTHETIC SETTINGS'
         Set-Content "$config/updates/update-random/dynamic.tmp" 'SYNTHETIC DYNAMIC SETTINGS'
+        New-Item -ItemType Directory -Force "$configBase/obs-studio/plugin_config/foreign" | Out-Null
+        Set-Content "$configBase/obs-studio/plugin_config/foreign/keep.txt" 'FOREIGN SETTINGS'
+        $upgradeMarker = "UPGRADED OWN FILE $case"
+        if ($case -like 'upgrade-*') {
+            Set-Content "$stage/obs-plugins/64bit/obs-streambridge.dll" $upgradeMarker
+            Set-Content "$stage/data/obs-plugins/obs-streambridge/browser/libcef.dll" $upgradeMarker
+        }
         $outside = Checked "$caseRoot/outside"
         New-Item -ItemType Directory -Force "$outside/browser/locales","$outside/updates/update-random" | Out-Null
         foreach ($name in @('obs-streambridge.dll','vault.dpapi','browser/libcef.dll','browser/locales/ru.pak','ru.pak','updates/update-random/dynamic.tmp','canary.txt')) {
@@ -88,8 +95,17 @@ try {
             foreach ($entry in $acls.Keys) { Assert ((Get-Acl -LiteralPath $entry).Sddl -eq $acls[$entry]) "$case external ACL identical: $([IO.Path]::GetRelativePath($outside,$entry))" }
             Assert (Test-Path "$root/bin/64bit/obs64.exe") "$case OBS preserved"
             Assert ((Get-Content "$root/data/obs-plugins/foreign/keep.txt" -Raw).Trim() -eq 'FOREIGN') "$case foreign plugin preserved"
+            Assert ((Get-Content "$configBase/obs-studio/plugin_config/foreign/keep.txt" -Raw).Trim() -eq 'FOREIGN SETTINGS') "$case foreign settings preserved"
             $unknown = if ($case -in @('resources','upgrade-resources')) { "$retained/unknown.txt" } else { "$resource/unknown.txt" }
             Assert ((Get-Content $unknown -Raw).Trim() -eq 'UNKNOWN RESOURCE MUST SURVIVE') "$case unknown resource preserved"
+            switch ($case) {
+                'resources' { Assert (-not (Test-Path "$retained/browser/libcef.dll")) 'resources deletion used the original file handle' }
+                'nested-resources' { Assert (-not (Test-Path "$retained/ru.pak")) 'nested deletion used the original file handle' }
+                'plugin-directory' { Assert (-not (Test-Path "$retained/obs-streambridge.dll")) 'DLL deletion used the original file handle' }
+                'upgrade-resources' { Assert ((Get-Content "$retained/browser/libcef.dll" -Raw).Trim() -eq $upgradeMarker) 'resource upgrade wrote through original file handle' }
+                'upgrade-plugin' { Assert ((Get-Content "$retained/obs-streambridge.dll" -Raw).Trim() -eq $upgradeMarker) 'DLL upgrade wrote through original file handle' }
+                'upgrade-added-junction' { Assert ((Get-Content "$resource/browser/libcef.dll" -Raw).Trim() -eq $upgradeMarker) 'upgrade completed despite newly added unknown junction' }
+            }
             if ($case -like '*purge') {
                 Assert (-not (Test-Path "$retained/updates/update-random/dynamic.tmp")) "$case original dynamic file removed by handle"
                 if ($actual -eq 0) { Assert (-not (Test-Path "$retained/vault.dpapi")) "$case completed purge removed original settings" }

@@ -172,6 +172,7 @@ if ($IsolatedNormal) {
         New-Item -ItemType Junction -Path $config -Target $external | Out-Null
         $linked = $true
         $obsBefore = (Snapshot $root) -join "`n"
+        $null = Invoke-LifecycleProcess "$workspace/build/Release/streambridge-files.exe" ('uninstall "{0}" "{1}" purge' -f $root,"$stage/data/obs-plugins/obs-streambridge/uninstall-manifest.txt") native-reject-appdata $OperationTimeoutSeconds 87
         Uninstall $root 87 -Purge
         Assert (((Snapshot $root) -join "`n") -ceq $obsBefore) 'AppData reparse rejection happens before plugin deletion'
         [IO.Directory]::Delete($config); $linked = $false

@@ -87,11 +87,21 @@ Function ${PREFIX}MaybeElevate
 FunctionEnd
 !macroend
 
+!macro FilesystemResult
+  Pop $ErrorCode
+  Pop $1
+  ; nsExec returns strings when CreateProcess fails or times out. SetErrorLevel
+  ; would convert a nonnumeric string to zero, so never forward it directly.
+  StrCmp $ErrorCode "error" 0 +2
+    StrCpy $ErrorCode 3
+  StrCmp $ErrorCode "timeout" 0 +2
+    StrCpy $ErrorCode 1460
+!macroend
+
 !macro CheckWritable PREFIX FAIL
   ; Read-only permission probe. Never create/delete a temporary file by pathname.
   nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" check "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt"'
-  Pop $ErrorCode
-  Pop $1
+  !insertmacro FilesystemResult
   !insertmacro Trace "${PREFIX}" "handle-based CheckWritable code=$ErrorCode detail=$1"
   StrCpy $ErrorPath "$INSTDIR"
   ${If} $ErrorCode != 0

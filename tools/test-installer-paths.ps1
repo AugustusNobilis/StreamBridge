@@ -191,4 +191,14 @@ if ($IsolatedNormal) {
         if ((Test-Path $key) -and (Get-ItemProperty $key).InstallLocation -eq $root) { Remove-Item -LiteralPath $key }
     }
 } else { Write-Lifecycle 'SKIP isolated AppData/registry test: local profile is not an isolated runner' }
+# A failed helper launch must be a failure, not nsExec's string "error" coerced to exit 0.
+$badPayload = Join-Path $fixture 'bad-helper-payload.nsh'
+& "$PSScriptRoot/installer-payload.ps1" -Stage $stage -Output $badPayload -Helper $source
+$badInstaller = Join-Path $fixture 'bad-helper-setup.exe'
+$null = Invoke-LifecycleProcess "$workspace/.deps/nsis-3.11/makensis.exe" ('/V2 /DVERSION=0.2.5 "/DPAYLOAD={0}" "/DOUTPUT={1}" "{2}"' -f $badPayload,$badInstaller,"$workspace/installer/streambridge.nsi") compile-bad-helper 30
+$root = New-Root helper-launch-failure
+$before = (Snapshot $root) -join "`n"
+$null = Invoke-LifecycleProcess $badInstaller "/S /D=$root" reject-helper-launch $OperationTimeoutSeconds 3
+Assert (((Snapshot $root) -join "`n") -ceq $before) 'failed helper launch returns 3 without changing installed files'
+Uninstall $root -Purge
 Write-Lifecycle ('SUITE END path-safety status=PASS duration={0:F3}s' -f $watch.Elapsed.TotalSeconds)

@@ -187,11 +187,9 @@ Section "StreamBridge" Main
   WriteUninstaller "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\uninstall.exe"
   !insertmacro Trace "" "START handle-based install root=$INSTDIR"
   nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" install "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt" "$PLUGINSDIR\payload"'
-  Pop $0
-  Pop $1
-  !insertmacro Trace "" "END handle-based install code=$0 detail=$1"
-  StrCmp $0 "0" native_installed
-  StrCpy $ErrorCode $0
+  !insertmacro FilesystemResult
+  !insertmacro Trace "" "END handle-based install code=$ErrorCode detail=$1"
+  StrCmp $ErrorCode "0" native_installed
   !insertmacro WriteFailure ""
   Goto native_failed
   native_installed:
@@ -324,8 +322,7 @@ Section "Uninstall"
   ${EndIf}
   !insertmacro Trace "un." "START handle-based uninstall root=$INSTDIR purge=$Purge"
   nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" uninstall "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt" $2'
-  Pop $ErrorCode
-  Pop $1
+  !insertmacro FilesystemResult
   !insertmacro Trace "un." "END handle-based uninstall code=$ErrorCode detail=$1"
   StrCmp $ErrorCode "0" 0 un_failed
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "InstallLocation"

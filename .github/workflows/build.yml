@@ -1,7 +1,7 @@
 name: Windows build and draft release
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/installer-lifecycle-ci', 'fix/installer-lifecycle-ci-*']
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -40,16 +40,47 @@ jobs:
       - name: Verify package manifests and contents
         run: ./tools/verify-package.ps1
       - name: Test installer and in-place update lifecycle
+        timeout-minutes: 15
         run: |
+          New-Item -ItemType Directory -Force build/lifecycle-diagnostics | Out-Null
+          function Test-Suite([string]$Name, [scriptblock]$Run) {
+            $watch = [Diagnostics.Stopwatch]::StartNew()
+            $status = 'FAILED'
+            Write-Output "SUITE START $Name"
+            try { & $Run; $status = 'PASS' }
+            finally {
+              $line = 'SUITE END {0} status={1} duration={2:F3}s' -f $Name,$status,$watch.Elapsed.TotalSeconds
+              $line | Tee-Object -FilePath build/lifecycle-diagnostics/suites.log -Append
+            }
+          }
           $version = [regex]::Match((Get-Content CMakeLists.txt -Raw), 'project\(obs-streambridge VERSION ([0-9.]+)').Groups[1].Value
           $installer = "dist/obs-streambridge-$version-windows-x64-setup.exe"
-          ./tools/test-installer.ps1 -Installer $installer -ObsExecutable build/Release/update-host-fixture.exe
-          ./tools/test-updater.ps1 -Installer $installer
-          ./tools/test-updater.ps1 -Installer $installer -ImmediateExit
-          ./tools/test-updater.ps1 -Installer $installer -RestartBeforeInstall
-          ./tools/test-updater.ps1 -Installer $installer -AutoRestart
-          ./tools/test-updater.ps1 -Installer $installer -CancelRestart
-          ./tools/test-updater.ps1 -Installer $installer -RejectRestart
+          Test-Suite process-containment { ./tools/test-lifecycle-process.ps1 }
+          Test-Suite process-role-results { ./tools/test-lifecycle-roles.ps1 }
+          Test-Suite updater-result-regression { ./tools/test-updater-failure.ps1 }
+          Test-Suite installer-path-safety { ./tools/test-installer-paths.ps1 -IsolatedNormal }
+          Test-Suite installer-synchronized-races { ./tools/test-installer-races.ps1 }
+          Test-Suite installer-portable-and-registry { ./tools/test-installer.ps1 -Installer $installer -ObsExecutable build/Release/update-host-fixture.exe }
+          Test-Suite published-0.2.5-upgrade { ./tools/test-published-upgrade.ps1 -Installer $installer -ObsExecutable build/Release/update-host-fixture.exe }
+          Test-Suite updater-default { ./tools/test-updater.ps1 -Installer $installer }
+          Test-Suite updater-immediate-exit { ./tools/test-updater.ps1 -Installer $installer -ImmediateExit }
+          Test-Suite updater-restart-before-install { ./tools/test-updater.ps1 -Installer $installer -RestartBeforeInstall }
+          Test-Suite updater-auto-restart { ./tools/test-updater.ps1 -Installer $installer -AutoRestart }
+          Test-Suite updater-cancel-restart { ./tools/test-updater.ps1 -Installer $installer -CancelRestart }
+          Test-Suite updater-reject-restart { ./tools/test-updater.ps1 -Installer $installer -RejectRestart }
+      - name: Preserve lifecycle diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: lifecycle-diagnostics
+          path: |
+            .deps/installer-test-*/*.log
+            .deps/updater-test-*/*.log
+            .deps/updater-test-*/download/*result.ini
+            build/lifecycle-diagnostics/**/*.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: windows-x64

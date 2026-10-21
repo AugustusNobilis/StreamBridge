@@ -11,6 +11,7 @@ Unicode true
 !ifndef PAYLOAD
   !error "PAYLOAD is required"
 !endif
+!include "${PAYLOAD}"
 Name "OBS StreamBridge ${VERSION}"
 OutFile "${OUTPUT}"
 InstallDir "$PROGRAMFILES64\obs-studio"
@@ -44,12 +45,20 @@ UninstPage custom un.SettingsPage un.SettingsLeave
 Var ErrorText
 Var Purge
 Var PurgeBox
+!include "diagnostics.nsh"
 !include "preflight.nsh"
+!include "path-safety.nsh"
 !include "update.nsh"
 
 Function .onInit
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=streambridge-files.exe "${SB_FILES_HELPER}"
+  File /oname=uninstall-manifest.txt "${SB_MANIFEST}"
+  Call InitLifecycleLog
+  !insertmacro Trace "" "START installer init INSTDIR=$INSTDIR"
   ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP "StreamBridge requires Windows x64."
+    MessageBox MB_ICONSTOP "StreamBridge requires Windows x64." /SD IDOK
     SetErrorLevel 2
     Quit
   ${EndIf}
@@ -72,11 +81,13 @@ Function .onInit
   ${EndIf}
   directory_ready:
   Call WaitForUpdate
+  !insertmacro Trace "" "END installer init INSTDIR=$INSTDIR"
 FunctionEnd
 
 
 Function CheckDirectory
   GetFullPathName $INSTDIR $INSTDIR
+  !insertmacro GuardPluginPaths "" failed
   StrCpy $ErrorCode 2
   StrCpy $ErrorText "Select an OBS Studio 32+ x64 root folder."
   IfFileExists "$INSTDIR\bin\64bit\obs64.exe" 0 failed
@@ -143,7 +154,7 @@ Function CheckDirectory
     FileClose $9
   !endif
   IfSilent +2
-    MessageBox MB_ICONSTOP "$ErrorText"
+    MessageBox MB_ICONSTOP "$ErrorText" /SD IDOK
   SetErrorLevel $ErrorCode
   Abort
 FunctionEnd
@@ -151,22 +162,37 @@ FunctionEnd
 Section "StreamBridge" Main
   Call CheckDirectory
   Call CheckUpdateCancelled
-  ; This dedicated directory contains only files from our package. User settings
-  ; live under OBS plugin_config and are never touched by installation/upgrade.
-  RMDir /r "$INSTDIR\data\obs-plugins\obs-streambridge\browser"
-  IfFileExists "$INSTDIR\data\obs-plugins\obs-streambridge\browser\*.*" install_failed
+  ; Extract only into our private NSIS directory. The helper copies to opened handles.
   SetOverwrite on
   ClearErrors
+  !define SB_EXTRACT_PAYLOAD
   !include "${PAYLOAD}"
+  !undef SB_EXTRACT_PAYLOAD
   IfErrors install_failed
-  ; Chromium's LPAC sandbox needs read/execute access to its own runtime files.
-  ; No OBS configuration, user profile or unrelated folder ACL is changed.
-  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$INSTDIR\data\obs-plugins\obs-streambridge\browser" /grant "*S-1-15-2-2:(OI)(CI)(RX)"'
-  Pop $0
-  Pop $1
-  StrCmp $0 "0" 0 install_failed
-  WriteINIStr "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini" "Install" "Root" "$INSTDIR"
-  WriteUninstaller "$INSTDIR\data\obs-plugins\obs-streambridge\uninstall.exe"
+  !insertmacro Trace "" "START write install.ini Root=$INSTDIR"
+  ; Win32 profile APIs create ANSI INI files unless a Unicode BOM already exists.
+  ; Write UTF-16 explicitly so Cyrillic paths survive non-Cyrillic Windows ACPs.
+  ClearErrors
+  FileOpen $2 "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\install.ini" w
+  IfErrors install_failed
+  FileWriteUTF16LE /BOM $2 "[Install]$\r$\nRoot=$INSTDIR$\r$\n"
+  FileClose $2
+  IfErrors install_failed
+  FlushINI "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\install.ini"
+  ClearErrors
+  ReadINIStr $0 "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\install.ini" "Install" "Root"
+  !insertmacro Trace "" "END write install.ini readback=$0 expected=$INSTDIR"
+  IfErrors install_failed
+  StrCmp $0 $INSTDIR 0 install_failed
+  WriteUninstaller "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\uninstall.exe"
+  !insertmacro Trace "" "START handle-based install root=$INSTDIR"
+  nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" install "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt" "$PLUGINSDIR\payload"'
+  !insertmacro FilesystemResult
+  !insertmacro Trace "" "END handle-based install code=$ErrorCode detail=$1"
+  StrCmp $ErrorCode "0" native_installed
+  !insertmacro WriteFailure ""
+  Goto native_failed
+  native_installed:
   IfFileExists "$INSTDIR\portable_mode.txt" installed
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "DisplayName" "OBS StreamBridge"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "DisplayVersion" "${VERSION}"
@@ -177,26 +203,52 @@ Section "StreamBridge" Main
   StrCpy $UpdateStatus "success"
   Call WriteUpdateResult
   SetErrorLevel 0
+  !insertmacro Trace "" "END installer code=0"
   Goto done
   install_failed:
   StrCpy $ErrorCode 3
+  native_failed:
+  !insertmacro Trace "" "END installer code=$ErrorCode"
   StrCpy $UpdateStatus "failed"
   Call WriteUpdateResult
   IfSilent +2
-    MessageBox MB_ICONSTOP "Installation failed. Keep OBS closed and rerun the installer. User settings were preserved."
-  SetErrorLevel 3
+    MessageBox MB_ICONSTOP "Installation failed. Keep OBS closed and rerun the installer. User settings were preserved." /SD IDOK
+  SetErrorLevel $ErrorCode
   Abort
   done:
 SectionEnd
 
 Function un.onInit
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=streambridge-files.exe "${SB_FILES_HELPER}"
+  File /oname=uninstall-manifest.txt "${SB_MANIFEST}"
+  Call un.InitLifecycleLog
+  !insertmacro Trace "un." "START un.onInit INSTDIR=$INSTDIR EXEDIR=$EXEDIR"
   SetRegView 64
   ; NSIS sets INSTDIR to the uninstaller's original directory.
+  GetFullPathName $INSTDIR $INSTDIR
+  !insertmacro Trace "un." "START read install.ini path=$INSTDIR\install.ini"
+  ClearErrors
   ReadINIStr $0 "$INSTDIR\install.ini" "Install" "Root"
+  IfErrors invalid_root_read
+  !insertmacro Trace "un." "END read install.ini result=ok Root=$0"
+  StrCmp $0 "" invalid
+  System::Call 'shlwapi::PathIsRelativeW(w r0) i.r2'
+  StrCmp $2 0 0 invalid
+  GetFullPathName $0 $0
   GetFullPathName $1 "$0\data\obs-plugins\obs-streambridge"
-  StrCmp $INSTDIR $1 0 invalid
+  !insertmacro Trace "un." "START compare paths actual=$INSTDIR expected=$1"
+  StrCmp $INSTDIR $1 0 invalid_path_compare
+  !insertmacro Trace "un." "END compare paths equal"
+  !insertmacro Trace "un." "START read package.ini path=$INSTDIR\package.ini"
+  ClearErrors
   ReadINIStr $1 "$INSTDIR\package.ini" "StreamBridge" "Product"
-  StrCmp $1 "obs-streambridge" 0 invalid
+  IfErrors invalid_product_read
+  !insertmacro Trace "un." "END read package.ini result=ok Product=$1"
+  !insertmacro Trace "un." "START compare product actual=$1 expected=obs-streambridge"
+  StrCmp $1 "obs-streambridge" 0 invalid_product_compare
+  !insertmacro Trace "un." "END compare product equal"
   StrCpy $INSTDIR $0
   StrCpy $Purge 0
   ${GetParameters} $0
@@ -209,9 +261,23 @@ Function un.onInit
   ${GetOptions} $0 "/PURGESETTINGS" $1
   IfErrors +2
     StrCpy $Purge 1
+  !insertmacro Trace "un." "END un.onInit root=$INSTDIR purge=$Purge"
   Return
+  invalid_path_compare:
+  !insertmacro Trace "un." "END compare paths different"
+  Goto invalid
+  invalid_product_compare:
+  !insertmacro Trace "un." "END compare product different"
+  Goto invalid
+  invalid_root_read:
+  !insertmacro Trace "un." "END read install.ini result=failed Root=$0"
+  Goto invalid
+  invalid_product_read:
+  !insertmacro Trace "un." "END read package.ini result=failed Product=$1"
   invalid:
-  MessageBox MB_ICONSTOP "Invalid installation marker. No files were removed."
+  !insertmacro Trace "un." "REJECT invalid installation marker; no files removed"
+  MessageBox MB_ICONSTOP "Invalid installation marker. No files were removed." /SD IDOK
+  !insertmacro Trace "un." "END uninstall code=2 invalid marker"
   SetErrorLevel 2
   Quit
 FunctionEnd
@@ -229,37 +295,58 @@ Function un.SettingsLeave
   ${NSD_GetState} $PurgeBox $Purge
 FunctionEnd
 Section "Uninstall"
+  ; Validate EVERY planned area before CheckWritable or the first deletion.
+  !insertmacro GuardPluginPaths "un." un_failed
+  ${If} $Purge == 1
+    IfFileExists "$INSTDIR\portable_mode.txt" guard_portable_settings
+    !insertmacro GuardDestination "$APPDATA\obs-studio\plugin_config\obs-streambridge" "tree" "un." un_failed
+    Goto guard_settings_done
+    guard_portable_settings:
+    !insertmacro GuardDestination "$INSTDIR\config\obs-studio\plugin_config\obs-streambridge" "tree" "un." un_failed
+    guard_settings_done:
+  ${EndIf}
+  !insertmacro Trace "un." "START un.CheckRunning root=$INSTDIR"
   Call un.CheckRunning
+  !insertmacro Trace "un." "END un.CheckRunning code=$ErrorCode"
   ${If} $ErrorCode != 0
     Goto un_failed
   ${EndIf}
+  !insertmacro Trace "un." "START CheckWritable root=$INSTDIR"
   !insertmacro CheckWritable "un." un_write_failed
+  !insertmacro Trace "un." "END CheckWritable code=$ErrorCode"
   StrCpy $ErrorCode 3
   StrCpy $ErrorText "Could not remove StreamBridge files. Check folder permissions and retry."
-  ClearErrors
-  Delete "$INSTDIR\obs-plugins\64bit\obs-streambridge.dll"
-  RMDir /r "$INSTDIR\data\obs-plugins\obs-streambridge"
-  IfErrors un_failed
+  StrCpy $2 ""
   ${If} $Purge == 1
-    IfFileExists "$INSTDIR\portable_mode.txt" portable_config
-    RMDir /r "$APPDATA\obs-studio\plugin_config\obs-streambridge"
-    Goto removed_config
-    portable_config:
-    RMDir /r "$INSTDIR\config\obs-studio\plugin_config\obs-streambridge"
-    removed_config:
+    StrCpy $2 "purge"
   ${EndIf}
+  !insertmacro Trace "un." "START handle-based uninstall root=$INSTDIR purge=$Purge"
+  nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" uninstall "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt" $2'
+  !insertmacro FilesystemResult
+  !insertmacro Trace "un." "END handle-based uninstall code=$ErrorCode detail=$1"
+  StrCmp $ErrorCode "0" 0 un_failed
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "InstallLocation"
   ${If} $0 == $INSTDIR
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge"
   ${EndIf}
   SetErrorLevel 0
+  !insertmacro Trace "un." "END uninstall code=0"
   Goto un_done
   un_write_failed:
+  !insertmacro Trace "un." "END CheckWritable code=$ErrorCode path=$ErrorPath"
   !insertmacro WriteFailure "un."
   un_failed:
+  !insertmacro Trace "un." "END uninstall code=$ErrorCode error=$ErrorText"
   IfSilent +2
-    MessageBox MB_ICONSTOP "$ErrorText"
+    MessageBox MB_ICONSTOP "$ErrorText" /SD IDOK
   SetErrorLevel $ErrorCode
   Abort
   un_done:
 SectionEnd
+
+Function un.onUninstSuccess
+  !insertmacro Trace "un." "EXIT un.onUninstSuccess code=0"
+FunctionEnd
+Function un.onUninstFailed
+  !insertmacro Trace "un." "EXIT un.onUninstFailed code=$ErrorCode"
+FunctionEnd

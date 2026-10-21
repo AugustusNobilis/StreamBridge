@@ -35,6 +35,16 @@ try {
         try { $hash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','') } finally { $sha.Dispose(); $stream.Dispose() }
         if ($hash -ne (Get-FileHash (Join-Path $workspace $pair[1])).Hash) { throw 'Packaged DLL differs from built DLL' }
     }
+    $manifestEntry = $zip.GetEntry('data/obs-plugins/obs-streambridge/uninstall-manifest.txt')
+    if (-not $manifestEntry) { throw 'Missing uninstall manifest' }
+    $reader = [IO.StreamReader]::new($manifestEntry.Open())
+    try { $manifest = @($reader.ReadToEnd() -split '\r?\n' | Where-Object { $_ } | ForEach-Object { $_.Replace('\','/') }) }
+    finally { $reader.Dispose() }
+    $payloadFiles = @($names | Where-Object { -not $_.EndsWith('/') })
+    $generated = @('data/obs-plugins/obs-streambridge/install.ini','data/obs-plugins/obs-streambridge/uninstall.exe')
+    if (Compare-Object ($payloadFiles + $generated | Sort-Object) ($manifest | Sort-Object)) { throw 'ZIP payload/uninstall manifest mismatch' }
+    if (($manifest | Sort-Object -Unique).Count -ne $manifest.Count) { throw 'Duplicate manifest entries' }
+    Write-Output 'PASS: every packaged file is in the uninstall manifest; generated metadata is explicit'
     Write-Output 'PASS: binary allowlist, runtime notices and exact built DLL hashes'
 } finally { $zip.Dispose() }
 $source = [IO.Compression.ZipFile]::OpenRead("$Dist/obs-streambridge-$version-source.zip")

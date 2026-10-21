@@ -46,6 +46,7 @@ Var Purge
 Var PurgeBox
 !include "diagnostics.nsh"
 !include "preflight.nsh"
+!include "path-safety.nsh"
 !include "update.nsh"
 
 Function .onInit
@@ -81,6 +82,7 @@ FunctionEnd
 
 Function CheckDirectory
   GetFullPathName $INSTDIR $INSTDIR
+  !insertmacro GuardPluginPaths "" failed
   StrCpy $ErrorCode 2
   StrCpy $ErrorText "Select an OBS Studio 32+ x64 root folder."
   IfFileExists "$INSTDIR\bin\64bit\obs64.exe" 0 failed
@@ -282,6 +284,16 @@ Function un.SettingsLeave
   ${NSD_GetState} $PurgeBox $Purge
 FunctionEnd
 Section "Uninstall"
+  ; Validate EVERY planned area before CheckWritable or the first deletion.
+  !insertmacro GuardPluginPaths "un." un_failed
+  ${If} $Purge == 1
+    IfFileExists "$INSTDIR\portable_mode.txt" guard_portable_settings
+    !insertmacro GuardDestination "$APPDATA\obs-studio\plugin_config\obs-streambridge" "tree" "un." un_failed
+    Goto guard_settings_done
+    guard_portable_settings:
+    !insertmacro GuardDestination "$INSTDIR\config\obs-studio\plugin_config\obs-streambridge" "tree" "un." un_failed
+    guard_settings_done:
+  ${EndIf}
   !insertmacro Trace "un." "START un.CheckRunning root=$INSTDIR"
   Call un.CheckRunning
   !insertmacro Trace "un." "END un.CheckRunning code=$ErrorCode"

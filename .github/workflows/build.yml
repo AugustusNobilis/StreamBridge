@@ -56,6 +56,7 @@ jobs:
           $version = [regex]::Match((Get-Content CMakeLists.txt -Raw), 'project\(obs-streambridge VERSION ([0-9.]+)').Groups[1].Value
           $installer = "dist/obs-streambridge-$version-windows-x64-setup.exe"
           Test-Suite process-containment { ./tools/test-lifecycle-process.ps1 }
+          Test-Suite installer-path-safety { ./tools/test-installer-paths.ps1 -IsolatedNormal }
           Test-Suite installer-portable-and-registry { ./tools/test-installer.ps1 -Installer $installer -ObsExecutable build/Release/update-host-fixture.exe }
           Test-Suite published-0.2.5-upgrade { ./tools/test-published-upgrade.ps1 -Installer $installer -ObsExecutable build/Release/update-host-fixture.exe }
           Test-Suite updater-default { ./tools/test-updater.ps1 -Installer $installer }

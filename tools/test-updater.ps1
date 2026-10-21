@@ -42,6 +42,15 @@ $result = "$fixture/launch.txt"
 try {
     $hostOperation = Start-LifecycleProcess -FilePath "$root/bin/64bit/obs64.exe" -Arguments ('"{0}" "{1}" "{2}"' -f "$download/setup.exe",$control,$result) -Name host-and-update -TimeoutSeconds $OperationTimeoutSeconds
     $operations.Add($hostOperation)
+    # Exact paths in this unique fixture + job membership + retained process
+    # handles identify roles. Protocol status alone cannot establish success.
+    $hostOperation.Roles = @(
+        @{ Name='host'; Path="$root/bin/64bit/obs64.exe"; Count=1; ExitCode=0 },
+        @{ Name='installer'; Path="$download/setup.exe"; Count=1; ExitCode=0 }
+    )
+    if ($RestartBeforeInstall) { $hostOperation.Roles[1].Count = 0 }
+    if ($CancelRestart) { $hostOperation.Roles[1].ExitCode = 1223 }
+    if ($AutoRestart) { $hostOperation.Roles[0].Count = 2 }
     $hostProcess = $hostOperation.Process
     Start-Sleep -Milliseconds 300
     Assert (-not $hostProcess.HasExited) 'isolated host fixture starts'
@@ -51,6 +60,10 @@ try {
         Set-Content -LiteralPath $control "restart:$targetVersion"
         Wait-Until { Test-Path -LiteralPath $result } 'Restart launcher did not report'
         Assert ((Get-Content -LiteralPath $result -Raw).Trim() -eq 'launched') 'restart helper and installer launched'
+        $helpers = @(Get-ChildItem -LiteralPath $download -Filter 'restart-*.exe' -File)
+        Assert ($helpers.Count -eq 1) 'one restart helper artifact in this unique download directory'
+        Assert ((Get-FileHash $helpers[0].FullName).Hash -eq (Get-FileHash "$workspace/build/Release/streambridge-update-helper.exe").Hash) 'restart helper identity matches the built helper'
+        $hostOperation.Roles += @{ Name='restart-helper'; Path=$helpers[0].FullName; Count=1; ExitCode=$(if ($RejectRestart) { 3 } else { 0 }) }
         Wait-Until { (Test-Path "$download/update-result.ini") -and (Get-Content "$download/update-result.ini" -Raw) -match 'Status=waiting' } 'Installer did not wait'
         Assert (((Get-FileHash "$root/obs-plugins/64bit/obs-streambridge.dll").Hash) -eq $oldPlugin) 'no replacement before OBS exit'
         if ($CancelRestart) {
@@ -87,9 +100,11 @@ try {
         Set-Content -LiteralPath $control 'idle'
         $hostOperation = Start-LifecycleProcess -FilePath "$root/bin/64bit/obs64.exe" -Arguments ('"{0}" "{1}" "{2}"' -f "$download/setup.exe",$control,$result) -Name host-and-update -TimeoutSeconds $OperationTimeoutSeconds
         $operations.Add($hostOperation)
+        $hostOperation.Roles = @(@{ Name='restarted-host'; Path="$root/bin/64bit/obs64.exe"; Count=1; ExitCode=0 })
         $hostProcess = $hostOperation.Process
         $installerOperation = Start-LifecycleProcess -FilePath "$download/setup.exe" -Arguments "/S /UPDATEPID=$oldPid /UPDATECREATED=$oldCreated /D=$root" -Name restarted-host-installer -TimeoutSeconds $OperationTimeoutSeconds
         $operations.Add($installerOperation)
+        $installerOperation.Roles = @(@{ Name='installer'; Path="$download/setup.exe"; Count=1; ExitCode=0 })
         $installerProcess = $installerOperation.Process
         Start-Sleep -Seconds 6
         Assert (-not $hostProcess.HasExited) 'restarted OBS remains running'
@@ -112,6 +127,7 @@ try {
         Assert ($hostProcess.WaitForExit(10000)) 'host closes immediately without waiting for installer acknowledgement'
         $hostProcess = $null
         Wait-Until { (Test-Path "$download/update-result.ini") -and (Get-Content "$download/update-result.ini" -Raw) -match 'Status=(success|failed)' } 'Immediate-exit update did not finish' 90
+        $null = Complete-LifecycleProcess $hostOperation
         Assert ((Get-Content "$download/update-result.ini" -Raw) -match 'Status=success') 'update succeeds even when OBS exits before installer initialization'
         Assert (((Get-FileHash "$root/obs-plugins/64bit/obs-streambridge.dll").Hash) -ne $oldPlugin) 'immediate-exit update replaces plugin'
         Assert (((Get-FileHash "$config/vault.dpapi").Hash) -eq $before) 'immediate-exit update preserves credentials'

@@ -24,7 +24,7 @@ function Start-LifecycleProcess {
         $env:STREAMBRIDGE_LIFECYCLE_LOG = $nativeLog
         $job = [StreamBridge.Tests.ProcessJob]::new((Resolve-Path -LiteralPath $FilePath).Path,
             $Arguments, (Get-Location).Path, $TimeoutSeconds, "$prefix.process.log")
-        return [pscustomobject]@{ Job=$job; Process=$job.Root; Name=$Name; NativeLog=$nativeLog; Prefix=$prefix; Completed=$false }
+        return [pscustomobject]@{ Job=$job; Process=$job.Root; Name=$Name; NativeLog=$nativeLog; Prefix=$prefix; Completed=$false; Roles=@() }
     } catch {
         Write-Lifecycle "END $Name status=START_FAILED reason=$($_.Exception.Message)"
         throw
@@ -35,6 +35,11 @@ function Complete-LifecycleProcess {
     try {
         $Operation.Job.Wait()
         $code = $Operation.Job.ExitCode
+        Write-Lifecycle "RESULT $($Operation.Name) parent=$code"
+        foreach ($role in $Operation.Roles) {
+            $Operation.Job.RequireRole($role.Name, $role.Path, $role.Count, $role.ExitCode)
+            Write-Lifecycle "ROLE $($role.Name) count=$($role.Count) code=$($role.ExitCode) verified"
+        }
         if ($Uninstaller) {
             # The NSIS launcher can exit 0 before its temporary child exits 2.
             # Require the child's terminal record AND an empty job, not launcher exit alone.

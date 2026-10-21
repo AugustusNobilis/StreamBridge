@@ -51,46 +51,6 @@ Function ${PREFIX}CheckRunning
   StrCpy $ErrorText "Windows could not check whether OBS files are in use (error $ErrorCode). No files were changed.$\r$\n$INSTDIR"
 FunctionEnd
 
-Function ${PREFIX}CheckWriteFile
-  IfFileExists "$ErrorPath" 0 file_done
-  ; Only files owned and replaced by StreamBridge need write permission.
-  System::Call 'kernel32::CreateFileW(w "$ErrorPath", i 0x40000000, i 7, p 0, i 3, i 0, p 0) p.r0 ?e'
-  Pop $1
-  ${If} $0 == -1
-    StrCpy $ErrorCode $1
-    Return
-  ${EndIf}
-  System::Call 'kernel32::CloseHandle(p r0)'
-  file_done:
-FunctionEnd
-
-Function ${PREFIX}CheckWriteDirectory
-  ; Test the nearest existing parent when installing into a fresh OBS root.
-  directory_parent:
-  System::Call 'kernel32::GetFileAttributesW(w "$ErrorPath") i.r0'
-  ${If} $0 == -1
-    ${GetParent} "$ErrorPath" $1
-    ${If} $1 == ""
-    ${OrIf} $1 == $ErrorPath
-      StrCpy $ErrorCode 3
-      Return
-    ${EndIf}
-    StrCpy $ErrorPath $1
-    Goto directory_parent
-  ${EndIf}
-  System::Call 'kernel32::GetTempFileNameW(w "$ErrorPath", w "sbr", i 0, w .r3) i.r0 ?e'
-  Pop $1
-  ${If} $0 == 0
-    StrCpy $ErrorCode $1
-    Return
-  ${EndIf}
-  System::Call 'kernel32::DeleteFileW(w r3) i.r0 ?e'
-  Pop $1
-  ${If} $0 == 0
-    StrCpy $ErrorCode $1
-  ${EndIf}
-FunctionEnd
-
 Function ${PREFIX}MaybeElevate
   ; Unattended installs never unexpectedly open a consent dialog.
   IfSilent elevation_done
@@ -127,36 +87,17 @@ Function ${PREFIX}MaybeElevate
 FunctionEnd
 !macroend
 
-!macro RequireWritableFile PATH PREFIX FAIL
-  StrCpy $ErrorPath "${PATH}"
-  !insertmacro Trace "${PREFIX}" "START CheckWriteFile path=$ErrorPath"
-  Call ${PREFIX}CheckWriteFile
-  !insertmacro Trace "${PREFIX}" "END CheckWriteFile code=$ErrorCode"
-  ${If} $ErrorCode != 0
-    Goto ${FAIL}
-  ${EndIf}
-!macroend
-!macro RequireWritableDirectory PATH PREFIX FAIL
-  StrCpy $ErrorPath "${PATH}"
-  !insertmacro Trace "${PREFIX}" "START CheckWriteDirectory path=$ErrorPath"
-  Call ${PREFIX}CheckWriteDirectory
-  !insertmacro Trace "${PREFIX}" "END CheckWriteDirectory code=$ErrorCode"
-  ${If} $ErrorCode != 0
-    Goto ${FAIL}
-  ${EndIf}
-!macroend
-
 !macro CheckWritable PREFIX FAIL
-  StrCpy $ErrorCode 0
-  !insertmacro RequireWritableFile "$INSTDIR\obs-plugins\64bit\obs-streambridge.dll" "${PREFIX}" ${FAIL}
-  !insertmacro RequireWritableFile "$INSTDIR\data\obs-plugins\obs-streambridge\browser\streambridge-browser.exe" "${PREFIX}" ${FAIL}
-  !insertmacro RequireWritableFile "$INSTDIR\data\obs-plugins\obs-streambridge\browser\streambridge-browser.dll" "${PREFIX}" ${FAIL}
-  !insertmacro RequireWritableFile "$INSTDIR\data\obs-plugins\obs-streambridge\browser\libcef.dll" "${PREFIX}" ${FAIL}
-  !insertmacro RequireWritableDirectory "$INSTDIR" "${PREFIX}" ${FAIL}
-  !insertmacro RequireWritableDirectory "$INSTDIR\obs-plugins\64bit" "${PREFIX}" ${FAIL}
-  !insertmacro RequireWritableDirectory "$INSTDIR\data\obs-plugins\obs-streambridge" "${PREFIX}" ${FAIL}
+  ; Read-only permission probe. Never create/delete a temporary file by pathname.
+  nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" check "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt"'
+  Pop $ErrorCode
+  Pop $1
+  !insertmacro Trace "${PREFIX}" "handle-based CheckWritable code=$ErrorCode detail=$1"
+  StrCpy $ErrorPath "$INSTDIR"
+  ${If} $ErrorCode != 0
+    Goto ${FAIL}
+  ${EndIf}
 !macroend
-
 !macro WriteFailure PREFIX
   ${If} $ErrorCode == 5
     StrCpy $ErrorText "Access denied to this OBS folder (Windows error 5). Run the installer as administrator, or use a writable portable OBS folder. Also check read-only attributes and folder permissions.$\r$\n$ErrorPath"

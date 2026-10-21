@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $workspace = (Resolve-Path "$PSScriptRoot/..").Path
 $version = [regex]::Match((Get-Content "$workspace/CMakeLists.txt" -Raw), 'project\(obs-streambridge VERSION ([0-9.]+)').Groups[1].Value
 if (-not $version) { throw 'Project version missing' }
-& "$PSScriptRoot/cmake.ps1" -CMakeArgs @('--build',$Build,'--config','Release','--target','obs-streambridge','updater','--parallel','4')
+& "$PSScriptRoot/cmake.ps1" -CMakeArgs @('--build',$Build,'--config','Release','--target','obs-streambridge','updater','streambridge-files','--parallel','4')
 if ($LASTEXITCODE -ne 0) { throw 'Plugin rebuild before packaging failed' }
 $stage = [IO.Path]::GetFullPath((Join-Path $workspace 'stage'))
 if (-not $stage.StartsWith($workspace + [IO.Path]::DirectorySeparatorChar)) { throw 'Stage escapes workspace' }
@@ -30,16 +30,7 @@ Product=obs-streambridge
 Version=$version
 "@ | Set-Content "$stage/data/obs-plugins/obs-streambridge/package.ini" -Encoding utf8
 $payload = Join-Path $workspace 'build/package/payload.nsh'
-$lines = [Collections.Generic.List[string]]::new()
-foreach ($file in Get-ChildItem -LiteralPath $stage -File -Recurse | Sort-Object FullName) {
-    $relative = [IO.Path]::GetRelativePath($stage, $file.DirectoryName)
-    $directory = if ($relative -eq '.') { '' } else { '\' + $relative }
-    # NSIS expands dollar signs even inside quotes.
-    $absolute = $file.FullName.Replace('$', '$$')
-    $lines.Add('SetOutPath "$INSTDIR' + $directory.Replace('$','$$') + '"')
-    $lines.Add('File "' + $absolute + '"')
-}
-$lines | Set-Content -LiteralPath $payload -Encoding utf8
+& "$PSScriptRoot/installer-payload.ps1" -Stage $stage -Output $payload -Helper "$Build/Release/streambridge-files.exe"
 $exe = Join-Path $workspace "dist/obs-streambridge-$version-windows-x64-setup.exe"
 & $Nsis /V2 "/DVERSION=$version" "/DPAYLOAD=$payload" "/DOUTPUT=$exe" "$workspace/installer/streambridge.nsi"
 if ($LASTEXITCODE -ne 0) { throw 'NSIS compilation failed' }

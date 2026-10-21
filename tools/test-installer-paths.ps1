@@ -19,16 +19,12 @@ Set-Content $source 'SYNTHETIC PAYLOAD ONLY'
 $package = Join-Path $fixture 'package.ini'
 Set-Content $package "[StreamBridge]`r`nProduct=obs-streambridge`r`nVersion=0.2.5" -Encoding ascii
 $payload = Join-Path $fixture 'payload.nsh'
-@'
-SetOutPath "$INSTDIR\obs-plugins\64bit"
-File /oname=obs-streambridge.dll "@SOURCE@"
-SetOutPath "$INSTDIR\data\obs-plugins\obs-streambridge\browser"
-File /oname=streambridge-browser.exe "@SOURCE@"
-File /oname=streambridge-browser.dll "@SOURCE@"
-File /oname=libcef.dll "@SOURCE@"
-SetOutPath "$INSTDIR\data\obs-plugins\obs-streambridge"
-File /oname=package.ini "@PACKAGE@"
-'@.Replace('@SOURCE@',$source).Replace('@PACKAGE@',$package) | Set-Content $payload -Encoding utf8
+$stage = Join-Path $fixture 'stage'
+New-Item -ItemType Directory -Force "$stage/obs-plugins/64bit","$stage/data/obs-plugins/obs-streambridge/browser" | Out-Null
+Copy-Item $source "$stage/obs-plugins/64bit/obs-streambridge.dll"
+foreach ($name in @('streambridge-browser.exe','streambridge-browser.dll','libcef.dll')) { Copy-Item $source "$stage/data/obs-plugins/obs-streambridge/browser/$name" }
+Copy-Item $package "$stage/data/obs-plugins/obs-streambridge/package.ini"
+& "$PSScriptRoot/installer-payload.ps1" -Stage $stage -Output $payload
 $installer = Join-Path $fixture 'setup.exe'
 $null = Invoke-LifecycleProcess "$workspace/.deps/nsis-3.11/makensis.exe" ('/V2 /DVERSION=0.2.5 "/DPAYLOAD={0}" "/DOUTPUT={1}" "{2}"' -f $payload,$installer,"$workspace/installer/streambridge.nsi") compile 30
 function Install([string]$Root, [int]$Expected = 0) {
@@ -58,6 +54,16 @@ function Snapshot([string]$Path) {
     }
     return $rows | Sort-Object
 }
+$unknownRoot = New-Root 'unknown-resources'
+$unknownResource = "$unknownRoot/data/obs-plugins/obs-streambridge/user-added.txt"
+Set-Content $unknownResource 'UNKNOWN RESOURCE'
+$unknownHash = (Get-FileHash $unknownResource).Hash
+# Editing the installed manifest must not expand the embedded uninstall allowlist.
+Add-Content "$unknownRoot/data/obs-plugins/obs-streambridge/uninstall-manifest.txt" "data\obs-plugins\other\keep.txt`r`ndata\obs-plugins\obs-streambridge\user-added.txt"
+Uninstall $unknownRoot
+Assert ((Get-FileHash $unknownResource).Hash -eq $unknownHash) 'unknown resource preserved despite tampered installed manifest'
+Assert (Test-Path "$unknownRoot/data/obs-plugins/other/keep.txt") 'tampered installed manifest cannot expand ownership'
+Assert (Test-Path "$unknownRoot/config/obs-studio/plugin_config/obs-streambridge/vault.dpapi") 'unknown resource case preserves settings by default'
 foreach ($case in @('dll-directory','resources','ancestor','root','nested','portable-purge','dangling','file-symlink','directory-symlink')) {
     $root = New-Root $case
     $caseRoot = Split-Path $root
@@ -93,6 +99,8 @@ foreach ($case in @('dll-directory','resources','ancestor','root','nested','port
             Move-Item -LiteralPath $target -Destination (Fixture-Path "$outside/retained-target")
         }
         $before = (Snapshot $caseRoot) -join "`n"
+        # Test the native boundary independently of NSIS's early preflight.
+        $null = Invoke-LifecycleProcess "$workspace/build/Release/streambridge-files.exe" ('uninstall "{0}" "{1}" purge' -f $root,"$stage/data/obs-plugins/obs-streambridge/uninstall-manifest.txt") "native-reject-$case" $OperationTimeoutSeconds 87
         # No settings writes in install/upgrade, so only purge must inspect config.
         if ($case -ne 'portable-purge') { Install $root 87 }
         Uninstall $root 87 -Purge

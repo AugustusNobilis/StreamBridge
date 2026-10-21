@@ -59,6 +59,7 @@ jobs:
           Test-Suite process-role-results { ./tools/test-lifecycle-roles.ps1 }
           Test-Suite updater-result-regression { ./tools/test-updater-failure.ps1 }
           Test-Suite installer-path-safety { ./tools/test-installer-paths.ps1 -IsolatedNormal }
+          Test-Suite installer-synchronized-races { ./tools/test-installer-races.ps1 }
           Test-Suite installer-portable-and-registry { ./tools/test-installer.ps1 -Installer $installer -ObsExecutable build/Release/update-host-fixture.exe }
           Test-Suite published-0.2.5-upgrade { ./tools/test-published-upgrade.ps1 -Installer $installer -ObsExecutable build/Release/update-host-fixture.exe }
           Test-Suite updater-default { ./tools/test-updater.ps1 -Installer $installer }

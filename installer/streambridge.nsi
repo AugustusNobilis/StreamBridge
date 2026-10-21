@@ -11,6 +11,7 @@ Unicode true
 !ifndef PAYLOAD
   !error "PAYLOAD is required"
 !endif
+!include "${PAYLOAD}"
 Name "OBS StreamBridge ${VERSION}"
 OutFile "${OUTPUT}"
 InstallDir "$PROGRAMFILES64\obs-studio"
@@ -50,6 +51,10 @@ Var PurgeBox
 !include "update.nsh"
 
 Function .onInit
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=streambridge-files.exe "${SB_FILES_HELPER}"
+  File /oname=uninstall-manifest.txt "${SB_MANIFEST}"
   Call InitLifecycleLog
   !insertmacro Trace "" "START installer init INSTDIR=$INSTDIR"
   ${IfNot} ${RunningX64}
@@ -157,36 +162,39 @@ FunctionEnd
 Section "StreamBridge" Main
   Call CheckDirectory
   Call CheckUpdateCancelled
-  ; This dedicated directory contains only files from our package. User settings
-  ; live under OBS plugin_config and are never touched by installation/upgrade.
-  RMDir /r "$INSTDIR\data\obs-plugins\obs-streambridge\browser"
-  IfFileExists "$INSTDIR\data\obs-plugins\obs-streambridge\browser\*.*" install_failed
+  ; Extract only into our private NSIS directory. The helper copies to opened handles.
   SetOverwrite on
   ClearErrors
+  !define SB_EXTRACT_PAYLOAD
   !include "${PAYLOAD}"
+  !undef SB_EXTRACT_PAYLOAD
   IfErrors install_failed
-  ; Chromium's LPAC sandbox needs read/execute access to its own runtime files.
-  ; No OBS configuration, user profile or unrelated folder ACL is changed.
-  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$INSTDIR\data\obs-plugins\obs-streambridge\browser" /grant "*S-1-15-2-2:(OI)(CI)(RX)"'
-  Pop $0
-  Pop $1
-  StrCmp $0 "0" 0 install_failed
   !insertmacro Trace "" "START write install.ini Root=$INSTDIR"
   ; Win32 profile APIs create ANSI INI files unless a Unicode BOM already exists.
   ; Write UTF-16 explicitly so Cyrillic paths survive non-Cyrillic Windows ACPs.
   ClearErrors
-  FileOpen $2 "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini" w
+  FileOpen $2 "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\install.ini" w
   IfErrors install_failed
   FileWriteUTF16LE /BOM $2 "[Install]$\r$\nRoot=$INSTDIR$\r$\n"
   FileClose $2
   IfErrors install_failed
-  FlushINI "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini"
+  FlushINI "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\install.ini"
   ClearErrors
-  ReadINIStr $0 "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini" "Install" "Root"
+  ReadINIStr $0 "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\install.ini" "Install" "Root"
   !insertmacro Trace "" "END write install.ini readback=$0 expected=$INSTDIR"
   IfErrors install_failed
   StrCmp $0 $INSTDIR 0 install_failed
-  WriteUninstaller "$INSTDIR\data\obs-plugins\obs-streambridge\uninstall.exe"
+  WriteUninstaller "$PLUGINSDIR\payload\data\obs-plugins\obs-streambridge\uninstall.exe"
+  !insertmacro Trace "" "START handle-based install root=$INSTDIR"
+  nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" install "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt" "$PLUGINSDIR\payload"'
+  Pop $0
+  Pop $1
+  !insertmacro Trace "" "END handle-based install code=$0 detail=$1"
+  StrCmp $0 "0" native_installed
+  StrCpy $ErrorCode $0
+  !insertmacro WriteFailure ""
+  Goto native_failed
+  native_installed:
   IfFileExists "$INSTDIR\portable_mode.txt" installed
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "DisplayName" "OBS StreamBridge"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "DisplayVersion" "${VERSION}"
@@ -200,18 +208,23 @@ Section "StreamBridge" Main
   !insertmacro Trace "" "END installer code=0"
   Goto done
   install_failed:
-  !insertmacro Trace "" "END installer code=3"
   StrCpy $ErrorCode 3
+  native_failed:
+  !insertmacro Trace "" "END installer code=$ErrorCode"
   StrCpy $UpdateStatus "failed"
   Call WriteUpdateResult
   IfSilent +2
     MessageBox MB_ICONSTOP "Installation failed. Keep OBS closed and rerun the installer. User settings were preserved." /SD IDOK
-  SetErrorLevel 3
+  SetErrorLevel $ErrorCode
   Abort
   done:
 SectionEnd
 
 Function un.onInit
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=streambridge-files.exe "${SB_FILES_HELPER}"
+  File /oname=uninstall-manifest.txt "${SB_MANIFEST}"
   Call un.InitLifecycleLog
   !insertmacro Trace "un." "START un.onInit INSTDIR=$INSTDIR EXEDIR=$EXEDIR"
   SetRegView 64
@@ -305,26 +318,16 @@ Section "Uninstall"
   !insertmacro Trace "un." "END CheckWritable code=$ErrorCode"
   StrCpy $ErrorCode 3
   StrCpy $ErrorText "Could not remove StreamBridge files. Check folder permissions and retry."
-  ClearErrors
-  !insertmacro Trace "un." "START delete plugin DLL root=$INSTDIR"
-  Delete "$INSTDIR\obs-plugins\64bit\obs-streambridge.dll"
-  IfErrors un_failed
-  !insertmacro Trace "un." "END delete plugin DLL code=0"
-  !insertmacro Trace "un." "START delete plugin resources root=$INSTDIR"
-  RMDir /r "$INSTDIR\data\obs-plugins\obs-streambridge"
-  IfErrors un_failed
-  !insertmacro Trace "un." "END delete plugin resources code=0"
+  StrCpy $2 ""
   ${If} $Purge == 1
-    !insertmacro Trace "un." "START purge settings root=$INSTDIR"
-    IfFileExists "$INSTDIR\portable_mode.txt" portable_config
-    RMDir /r "$APPDATA\obs-studio\plugin_config\obs-streambridge"
-    Goto removed_config
-    portable_config:
-    RMDir /r "$INSTDIR\config\obs-studio\plugin_config\obs-streambridge"
-    removed_config:
-    IfErrors un_failed
-    !insertmacro Trace "un." "END purge settings code=0"
+    StrCpy $2 "purge"
   ${EndIf}
+  !insertmacro Trace "un." "START handle-based uninstall root=$INSTDIR purge=$Purge"
+  nsExec::ExecToStack '"$PLUGINSDIR\streambridge-files.exe" uninstall "$INSTDIR" "$PLUGINSDIR\uninstall-manifest.txt" $2'
+  Pop $ErrorCode
+  Pop $1
+  !insertmacro Trace "un." "END handle-based uninstall code=$ErrorCode detail=$1"
+  StrCmp $ErrorCode "0" 0 un_failed
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "InstallLocation"
   ${If} $0 == $INSTDIR
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge"

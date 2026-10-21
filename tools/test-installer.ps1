@@ -34,7 +34,11 @@ New-Item -ItemType Directory -Force $config | Out-Null
 Set-Content "$config/settings.json" '{"installerTestCanary":true}'
 Set-Content "$config/vault.dpapi" 'synthetic vault canary; no user credentials'
 $before = (Get-FileHash "$config/vault.dpapi").Hash
+$beforeFiles = @((Get-ChildItem -LiteralPath $valid -Recurse -File).FullName)
 Assert ((Install $valid) -eq 0) 'portable installation with Cyrillic, spaces and read-only OBS succeeds'
+$installedFiles = @(Get-ChildItem -LiteralPath $valid -Recurse -File | Where-Object { $_.FullName -notin $beforeFiles } | ForEach-Object { [IO.Path]::GetRelativePath($valid,$_.FullName) })
+$uninstallManifest = @(Get-Content -LiteralPath "$valid/data/obs-plugins/obs-streambridge/uninstall-manifest.txt" | Where-Object { $_ })
+Assert (-not (Compare-Object ($installedFiles | Sort-Object) ($uninstallManifest | Sort-Object))) 'every actual installer payload file is covered by its uninstall manifest'
 $markerBytes = [IO.File]::ReadAllBytes("$valid/data/obs-plugins/obs-streambridge/install.ini")
 Assert ($markerBytes[0] -eq 255 -and $markerBytes[1] -eq 254) 'installation root marker is UTF-16 independent of Windows ANSI code page'
 Assert (([Text.Encoding]::Unicode.GetString($markerBytes)) -match [regex]::Escape("Root=$valid")) 'Unicode marker preserves the exact Cyrillic root'

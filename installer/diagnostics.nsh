@@ -30,7 +30,11 @@ Function ${PREFIX}LifecycleTrace
   FileOpen $R0 "$LifecycleLog" a
   IfErrors trace_done
   FileSeek $R0 0 END
-  FileWriteUTF16LE $R0 "filetime=$R1 pid=$R2 $R9$\r$\n"
+  ; A full helper diagnostic can fill an NSIS string; its terminal record still
+  ; needs a newline so the next END record remains independently parseable.
+  FileWriteUTF16LE $R0 "filetime=$R1 pid=$R2 "
+  FileWriteUTF16LE $R0 "$R9"
+  FileWriteUTF16LE $R0 "$\r$\n"
   FileClose $R0
   trace_done:
   ClearErrors

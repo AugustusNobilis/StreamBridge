@@ -44,12 +44,15 @@ UninstPage custom un.SettingsPage un.SettingsLeave
 Var ErrorText
 Var Purge
 Var PurgeBox
+!include "diagnostics.nsh"
 !include "preflight.nsh"
 !include "update.nsh"
 
 Function .onInit
+  Call InitLifecycleLog
+  !insertmacro Trace "" "START installer init INSTDIR=$INSTDIR"
   ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP "StreamBridge requires Windows x64."
+    MessageBox MB_ICONSTOP "StreamBridge requires Windows x64." /SD IDOK
     SetErrorLevel 2
     Quit
   ${EndIf}
@@ -72,6 +75,7 @@ Function .onInit
   ${EndIf}
   directory_ready:
   Call WaitForUpdate
+  !insertmacro Trace "" "END installer init INSTDIR=$INSTDIR"
 FunctionEnd
 
 
@@ -143,7 +147,7 @@ Function CheckDirectory
     FileClose $9
   !endif
   IfSilent +2
-    MessageBox MB_ICONSTOP "$ErrorText"
+    MessageBox MB_ICONSTOP "$ErrorText" /SD IDOK
   SetErrorLevel $ErrorCode
   Abort
 FunctionEnd
@@ -165,7 +169,21 @@ Section "StreamBridge" Main
   Pop $0
   Pop $1
   StrCmp $0 "0" 0 install_failed
-  WriteINIStr "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini" "Install" "Root" "$INSTDIR"
+  !insertmacro Trace "" "START write install.ini Root=$INSTDIR"
+  ; Win32 profile APIs create ANSI INI files unless a Unicode BOM already exists.
+  ; Write UTF-16 explicitly so Cyrillic paths survive non-Cyrillic Windows ACPs.
+  ClearErrors
+  FileOpen $2 "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini" w
+  IfErrors install_failed
+  FileWriteUTF16LE /BOM $2 "[Install]$\r$\nRoot=$INSTDIR$\r$\n"
+  FileClose $2
+  IfErrors install_failed
+  FlushINI "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini"
+  ClearErrors
+  ReadINIStr $0 "$INSTDIR\data\obs-plugins\obs-streambridge\install.ini" "Install" "Root"
+  !insertmacro Trace "" "END write install.ini readback=$0 expected=$INSTDIR"
+  IfErrors install_failed
+  StrCmp $0 $INSTDIR 0 install_failed
   WriteUninstaller "$INSTDIR\data\obs-plugins\obs-streambridge\uninstall.exe"
   IfFileExists "$INSTDIR\portable_mode.txt" installed
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "DisplayName" "OBS StreamBridge"
@@ -177,26 +195,47 @@ Section "StreamBridge" Main
   StrCpy $UpdateStatus "success"
   Call WriteUpdateResult
   SetErrorLevel 0
+  !insertmacro Trace "" "END installer code=0"
   Goto done
   install_failed:
+  !insertmacro Trace "" "END installer code=3"
   StrCpy $ErrorCode 3
   StrCpy $UpdateStatus "failed"
   Call WriteUpdateResult
   IfSilent +2
-    MessageBox MB_ICONSTOP "Installation failed. Keep OBS closed and rerun the installer. User settings were preserved."
+    MessageBox MB_ICONSTOP "Installation failed. Keep OBS closed and rerun the installer. User settings were preserved." /SD IDOK
   SetErrorLevel 3
   Abort
   done:
 SectionEnd
 
 Function un.onInit
+  Call un.InitLifecycleLog
+  !insertmacro Trace "un." "START un.onInit INSTDIR=$INSTDIR EXEDIR=$EXEDIR"
   SetRegView 64
   ; NSIS sets INSTDIR to the uninstaller's original directory.
+  GetFullPathName $INSTDIR $INSTDIR
+  !insertmacro Trace "un." "START read install.ini path=$INSTDIR\install.ini"
+  ClearErrors
   ReadINIStr $0 "$INSTDIR\install.ini" "Install" "Root"
+  IfErrors invalid_root_read
+  !insertmacro Trace "un." "END read install.ini result=ok Root=$0"
+  StrCmp $0 "" invalid
+  System::Call 'shlwapi::PathIsRelativeW(w r0) i.r2'
+  StrCmp $2 0 0 invalid
+  GetFullPathName $0 $0
   GetFullPathName $1 "$0\data\obs-plugins\obs-streambridge"
-  StrCmp $INSTDIR $1 0 invalid
+  !insertmacro Trace "un." "START compare paths actual=$INSTDIR expected=$1"
+  StrCmp $INSTDIR $1 0 invalid_path_compare
+  !insertmacro Trace "un." "END compare paths equal"
+  !insertmacro Trace "un." "START read package.ini path=$INSTDIR\package.ini"
+  ClearErrors
   ReadINIStr $1 "$INSTDIR\package.ini" "StreamBridge" "Product"
-  StrCmp $1 "obs-streambridge" 0 invalid
+  IfErrors invalid_product_read
+  !insertmacro Trace "un." "END read package.ini result=ok Product=$1"
+  !insertmacro Trace "un." "START compare product actual=$1 expected=obs-streambridge"
+  StrCmp $1 "obs-streambridge" 0 invalid_product_compare
+  !insertmacro Trace "un." "END compare product equal"
   StrCpy $INSTDIR $0
   StrCpy $Purge 0
   ${GetParameters} $0
@@ -209,9 +248,23 @@ Function un.onInit
   ${GetOptions} $0 "/PURGESETTINGS" $1
   IfErrors +2
     StrCpy $Purge 1
+  !insertmacro Trace "un." "END un.onInit root=$INSTDIR purge=$Purge"
   Return
+  invalid_path_compare:
+  !insertmacro Trace "un." "END compare paths different"
+  Goto invalid
+  invalid_product_compare:
+  !insertmacro Trace "un." "END compare product different"
+  Goto invalid
+  invalid_root_read:
+  !insertmacro Trace "un." "END read install.ini result=failed Root=$0"
+  Goto invalid
+  invalid_product_read:
+  !insertmacro Trace "un." "END read package.ini result=failed Product=$1"
   invalid:
-  MessageBox MB_ICONSTOP "Invalid installation marker. No files were removed."
+  !insertmacro Trace "un." "REJECT invalid installation marker; no files removed"
+  MessageBox MB_ICONSTOP "Invalid installation marker. No files were removed." /SD IDOK
+  !insertmacro Trace "un." "END uninstall code=2 invalid marker"
   SetErrorLevel 2
   Quit
 FunctionEnd
@@ -229,37 +282,59 @@ Function un.SettingsLeave
   ${NSD_GetState} $PurgeBox $Purge
 FunctionEnd
 Section "Uninstall"
+  !insertmacro Trace "un." "START un.CheckRunning root=$INSTDIR"
   Call un.CheckRunning
+  !insertmacro Trace "un." "END un.CheckRunning code=$ErrorCode"
   ${If} $ErrorCode != 0
     Goto un_failed
   ${EndIf}
+  !insertmacro Trace "un." "START CheckWritable root=$INSTDIR"
   !insertmacro CheckWritable "un." un_write_failed
+  !insertmacro Trace "un." "END CheckWritable code=$ErrorCode"
   StrCpy $ErrorCode 3
   StrCpy $ErrorText "Could not remove StreamBridge files. Check folder permissions and retry."
   ClearErrors
+  !insertmacro Trace "un." "START delete plugin DLL root=$INSTDIR"
   Delete "$INSTDIR\obs-plugins\64bit\obs-streambridge.dll"
+  IfErrors un_failed
+  !insertmacro Trace "un." "END delete plugin DLL code=0"
+  !insertmacro Trace "un." "START delete plugin resources root=$INSTDIR"
   RMDir /r "$INSTDIR\data\obs-plugins\obs-streambridge"
   IfErrors un_failed
+  !insertmacro Trace "un." "END delete plugin resources code=0"
   ${If} $Purge == 1
+    !insertmacro Trace "un." "START purge settings root=$INSTDIR"
     IfFileExists "$INSTDIR\portable_mode.txt" portable_config
     RMDir /r "$APPDATA\obs-studio\plugin_config\obs-streambridge"
     Goto removed_config
     portable_config:
     RMDir /r "$INSTDIR\config\obs-studio\plugin_config\obs-streambridge"
     removed_config:
+    IfErrors un_failed
+    !insertmacro Trace "un." "END purge settings code=0"
   ${EndIf}
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge" "InstallLocation"
   ${If} $0 == $INSTDIR
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSStreamBridge"
   ${EndIf}
   SetErrorLevel 0
+  !insertmacro Trace "un." "END uninstall code=0"
   Goto un_done
   un_write_failed:
+  !insertmacro Trace "un." "END CheckWritable code=$ErrorCode path=$ErrorPath"
   !insertmacro WriteFailure "un."
   un_failed:
+  !insertmacro Trace "un." "END uninstall code=$ErrorCode error=$ErrorText"
   IfSilent +2
-    MessageBox MB_ICONSTOP "$ErrorText"
+    MessageBox MB_ICONSTOP "$ErrorText" /SD IDOK
   SetErrorLevel $ErrorCode
   Abort
   un_done:
 SectionEnd
+
+Function un.onUninstSuccess
+  !insertmacro Trace "un." "EXIT un.onUninstSuccess code=0"
+FunctionEnd
+Function un.onUninstFailed
+  !insertmacro Trace "un." "EXIT un.onUninstFailed code=$ErrorCode"
+FunctionEnd

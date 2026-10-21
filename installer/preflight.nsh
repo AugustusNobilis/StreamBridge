@@ -7,7 +7,9 @@ Var ElevatedRetry
 !macro PreflightFunctions PREFIX
 Function ${PREFIX}CheckRunning
   StrCpy $ErrorCode 0
+  !insertmacro Trace "${PREFIX}" "START RmStartSession"
   System::Call 'rstrtmgr::RmStartSession(*i .r4, i 0, w .r5) i.r0'
+  !insertmacro Trace "${PREFIX}" "END RmStartSession code=$0"
   ${If} $0 != 0
     StrCpy $ErrorCode $0
     Goto running_error
@@ -19,7 +21,9 @@ Function ${PREFIX}CheckRunning
   System::Call '*(&w${NSIS_MAX_STRLEN} "$INSTDIR\data\obs-plugins\obs-streambridge\browser\streambridge-browser.dll") p.r8'
   System::Call '*(&w${NSIS_MAX_STRLEN} "$INSTDIR\data\obs-plugins\obs-streambridge\browser\libcef.dll") p.r9'
   System::Call '*(p r5, p r6, p r7, p r8, p r9) p.r3'
+  !insertmacro Trace "${PREFIX}" "START RmRegisterResources"
   System::Call 'rstrtmgr::RmRegisterResources(i r4, i 5, p r3, i 0, p 0, i 0, p 0) i.r0'
+  !insertmacro Trace "${PREFIX}" "END RmRegisterResources code=$0"
   System::Free $3
   System::Free $5
   System::Free $6
@@ -27,10 +31,14 @@ Function ${PREFIX}CheckRunning
   System::Free $8
   System::Free $9
   ${If} $0 == 0
+    !insertmacro Trace "${PREFIX}" "START RmGetList"
     System::Call 'rstrtmgr::RmGetList(i r4, *i .r1, *i 0, p 0, *i .r2) i.r0'
+    !insertmacro Trace "${PREFIX}" "END RmGetList code=$0"
   ${EndIf}
   StrCpy $ErrorCode $0
+  !insertmacro Trace "${PREFIX}" "START RmEndSession"
   System::Call 'rstrtmgr::RmEndSession(i r4)'
+  !insertmacro Trace "${PREFIX}" "END RmEndSession"
   ${If} $ErrorCode == 234
     StrCpy $ErrorCode 32
     StrCpy $ErrorText "Files in this OBS installation are in use. Close OBS and StreamBridge browser processes, then retry.$\r$\n$INSTDIR"
@@ -121,14 +129,18 @@ FunctionEnd
 
 !macro RequireWritableFile PATH PREFIX FAIL
   StrCpy $ErrorPath "${PATH}"
+  !insertmacro Trace "${PREFIX}" "START CheckWriteFile path=$ErrorPath"
   Call ${PREFIX}CheckWriteFile
+  !insertmacro Trace "${PREFIX}" "END CheckWriteFile code=$ErrorCode"
   ${If} $ErrorCode != 0
     Goto ${FAIL}
   ${EndIf}
 !macroend
 !macro RequireWritableDirectory PATH PREFIX FAIL
   StrCpy $ErrorPath "${PATH}"
+  !insertmacro Trace "${PREFIX}" "START CheckWriteDirectory path=$ErrorPath"
   Call ${PREFIX}CheckWriteDirectory
+  !insertmacro Trace "${PREFIX}" "END CheckWriteDirectory code=$ErrorCode"
   ${If} $ErrorCode != 0
     Goto ${FAIL}
   ${EndIf}
